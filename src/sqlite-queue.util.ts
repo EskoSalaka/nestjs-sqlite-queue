@@ -1,15 +1,16 @@
 import type { JobStatus } from './models/job.model'
-import { DEFAULT_CONNECTION_NAME, DEFAULT_QUEUE_NAME } from './sqlite-queue.constants'
+import {
+  SQLITE_QUEUE_DEFAULT_CONNECTION_NAME,
+  SQLITE_QUEUE_DEFAULT_QUEUE_NAME,
+} from './sqlite-queue.constants'
 
-export function getConnectionToken(connection: string = DEFAULT_CONNECTION_NAME): string {
+export function getConnectionToken(
+  connection: string = SQLITE_QUEUE_DEFAULT_CONNECTION_NAME
+): string {
   return 'SQliteQueueConnection:' + connection
 }
 
-export function getQueueServiceToken(connection: string = DEFAULT_CONNECTION_NAME): string {
-  return 'SQLiteQueueService:' + connection
-}
-
-export function getQueueToken(name: string = DEFAULT_QUEUE_NAME): string {
+export function getQueueToken(name: string = SQLITE_QUEUE_DEFAULT_QUEUE_NAME): string {
   return 'SQLiteQueue:' + name
 }
 

@@ -1,10 +1,10 @@
 import type { ModuleMetadata } from '@nestjs/common'
 
 export interface SQLiteQueueConfig {
-  name: string
+  name?: string
   connection?: string
   maxParallelJobs?: number
-  synchronize: boolean
+  synchronize?: boolean
 }
 
 export interface SQLiteQueueModuleConfig {

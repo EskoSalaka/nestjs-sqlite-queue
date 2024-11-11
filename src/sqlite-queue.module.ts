@@ -1,32 +1,44 @@
 import 'reflect-metadata'
-import { Global, Module } from '@nestjs/common'
+import { Global, Inject, Module, type OnApplicationShutdown } from '@nestjs/common'
 import {
   SQLiteQueueConfig,
   type SQLiteQueueModuleAsyncConfig,
   type SQLiteQueueModuleConfig,
 } from './sqlite-queue.interfaces'
-import { SqliteQueue } from './sqlite-queue'
-import { SQLiteQueueService } from './sqlite-queue.service'
-import { SQLITE_QUEUE_CONFIG_TOKEN } from './sqlite-queue.constants'
+import { SQLiteQueue } from './sqlite-queue.service'
+import {
+  SQLITE_QUEUE_CONFIG_TOKEN,
+  SQLITE_QUEUE_CONNECTION_NAME_TOKEN,
+  SQLITE_QUEUE_DEFAULT_CONNECTION_NAME,
+  SQLITE_QUEUE_DEFAULT_QUEUE_NAME,
+} from './sqlite-queue.constants'
 import { SQLiteQueueWorker } from './sqlite-queue-worker'
 import { MetadataScanner, DiscoveryService, Reflector } from '@nestjs/core'
 import { Sequelize, SequelizeOptions } from 'sequelize-typescript'
-import {
-  getConnectionToken,
-  getQueueServiceToken,
-  getQueueToken,
-  getWorkerEventName,
-} from './sqlite-queue.util'
+import { getConnectionToken, getQueueToken, getWorkerEventName } from './sqlite-queue.util'
 import { createJobModel, JobModel, type JobStatus } from './models/job.model'
 import { defer, lastValueFrom } from 'rxjs'
 import { EventEmitter } from 'node:events'
 import { SQLiteQueueMetadataAccessor } from './sqlite-queue.meta-accessor'
+import { log } from 'node:console'
+import { ModuleRef } from '@nestjs/core'
 
 @Global()
 @Module({})
-export class SQLiteQueueModule {
-  static forRootAsync(options: SQLiteQueueModuleAsyncConfig, connection: string) {
+export class SQLiteQueueModule implements OnApplicationShutdown {
+  constructor(
+    @Inject(SQLITE_QUEUE_CONNECTION_NAME_TOKEN) private readonly connectionName: string,
+    private readonly moduleRef: ModuleRef
+  ) {}
+
+  static forRootAsync(options: SQLiteQueueModuleAsyncConfig, connection?: string) {
     let moduleOptionsProvider = SQLiteQueueModule.createAsyncOptiosProvider(options)
+
+    let connectionNameProvider = {
+      provide: SQLITE_QUEUE_CONNECTION_NAME_TOKEN,
+      useValue: connection ?? SQLITE_QUEUE_DEFAULT_CONNECTION_NAME,
+    }
+
     let connectionProvider = {
       provide: getConnectionToken(connection),
       useFactory: async (config: SQLiteQueueModuleConfig) => {
@@ -37,63 +49,52 @@ export class SQLiteQueueModule {
 
     return {
       module: SQLiteQueueModule,
-      providers: [moduleOptionsProvider, connectionProvider],
-      exports: [connectionProvider],
+      providers: [connectionNameProvider, moduleOptionsProvider, connectionProvider],
+      exports: [connectionNameProvider, connectionProvider],
     }
   }
 
   public static async registerQueue(config: SQLiteQueueConfig) {
-    let sqliteQueueServiceProvider = {
-      provide: getQueueServiceToken(config.connection),
-      useFactory: async (dbConnection: Sequelize) => {
+    let sqliteQueueProvider = {
+      provide: getQueueToken(config.name ?? SQLITE_QUEUE_DEFAULT_QUEUE_NAME),
+      useFactory: async (dbConnection: Sequelize, metaAccessor: SQLiteQueueMetadataAccessor) => {
         let model = createJobModel(config.name, dbConnection)
-
         await model.sync({ force: false })
 
-        return new SQLiteQueueService(model as typeof JobModel)
-      },
-      inject: [getConnectionToken(config.connection)],
-    }
+        let sqliteQueue = new SQLiteQueue(model as typeof JobModel)
+        await SQLiteQueueModule.registerWorker(config, metaAccessor, sqliteQueue)
 
-    let queueProvider = {
-      provide: getQueueToken(config.name),
-      useFactory: (
-        sqliteQueueService: SQLiteQueueService,
-        metaAccessor: SQLiteQueueMetadataAccessor
-      ) => {
-        SQLiteQueueModule.registerWorker(config, metaAccessor, sqliteQueueService)
-
-        return new SqliteQueue(sqliteQueueService)
+        return sqliteQueue
       },
-      inject: [getQueueServiceToken(config.connection), SQLiteQueueMetadataAccessor],
+      inject: [getConnectionToken(config.connection), SQLiteQueueMetadataAccessor],
     }
 
     return {
       module: SQLiteQueueModule,
-      imports: [],
       providers: [
-        sqliteQueueServiceProvider,
-        queueProvider,
+        sqliteQueueProvider,
         SQLiteQueueMetadataAccessor,
         DiscoveryService,
         MetadataScanner,
         Reflector,
       ],
-      exports: [sqliteQueueServiceProvider, queueProvider],
+      exports: [sqliteQueueProvider],
     }
   }
 
   static async registerWorker(
     config: SQLiteQueueConfig,
     metaAccessor: SQLiteQueueMetadataAccessor,
-    sqliteQueueService: SQLiteQueueService
+    sqliteQueue: SQLiteQueue
   ) {
-    let { instance: consumerInstance } = metaAccessor.findConsumerForQueue(config.name)
+    let { instance: consumerInstance } = metaAccessor.findConsumerForQueue(
+      config.name ?? SQLITE_QUEUE_DEFAULT_QUEUE_NAME
+    )
     let workerProcessMethods = metaAccessor.findConsumerProcessMethods(consumerInstance)
     let workerEventMethods = metaAccessor.findConsumerEventMethods(consumerInstance)
 
     let eventEmitter = new EventEmitter()
-    let worker = new SQLiteQueueWorker(config, sqliteQueueService, eventEmitter)
+    let worker = new SQLiteQueueWorker(config, sqliteQueue, eventEmitter)
 
     for (const workerProcessMethodWithMeta of workerProcessMethods) {
       if (!workerProcessMethodWithMeta.methodMeta) {
@@ -106,7 +107,10 @@ export class SQLiteQueueModule {
 
     for (const workerEventMethodWithMeta of workerEventMethods) {
       eventEmitter.on(
-        getWorkerEventName(config.name, workerEventMethodWithMeta.methodMeta as JobStatus),
+        getWorkerEventName(
+          config.name ?? SQLITE_QUEUE_DEFAULT_QUEUE_NAME,
+          workerEventMethodWithMeta.methodMeta as JobStatus
+        ),
         workerEventMethodWithMeta.method.bind(consumerInstance)
       )
     }
@@ -147,5 +151,9 @@ export class SQLiteQueueModule {
         return sequelize
       })
     )
+  }
+
+  async onApplicationShutdown(signal?: string) {
+    log('Closing connection', this.connectionName)
   }
 }

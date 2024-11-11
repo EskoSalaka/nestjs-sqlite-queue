@@ -3,7 +3,7 @@ import { JobStatus, type Job } from './models/job.model'
 import { getWorkerEventName } from './sqlite-queue.util'
 import EventEmitter from 'node:events'
 import type { SQLiteQueueConfig } from './sqlite-queue.interfaces'
-import type { SQLiteQueueService } from './sqlite-queue.service'
+import type { SQLiteQueue } from './sqlite-queue.service'
 
 @Injectable()
 export class SQLiteQueueWorker {
@@ -14,7 +14,7 @@ export class SQLiteQueueWorker {
 
   constructor(
     private readonly config: SQLiteQueueConfig,
-    private readonly queueService: SQLiteQueueService,
+    private readonly queue: SQLiteQueue,
     private readonly eventEmitter: EventEmitter
   ) {
     this.maxParallelJobs = config.maxParallelJobs
@@ -26,15 +26,15 @@ export class SQLiteQueueWorker {
   }
 
   private async consumeEvents() {
-    const transaction = await this.queueService.createTransaction()
-    const event = await this.queueService.getLatestNewJob(transaction)
+    const transaction = await this.queue.createTransaction()
+    const event = await this.queue.getLatestNewJob(transaction)
 
     if (!event || (this.maxParallelJobs && this.activeJobs >= this.maxParallelJobs)) {
       await transaction.commit()
       return
     }
 
-    await this.queueService.markAsProcessing(event.id, transaction)
+    await this.queue.markAsProcessing(event.id, transaction)
     await transaction.commit()
     this.emitWorkerEvent(event, JobStatus.PROCESSING)
 
@@ -44,14 +44,14 @@ export class SQLiteQueueWorker {
 
     try {
       const result = await this.handleJob(event)
-      let updatedEvent = await this.queueService.markAsProcessed(event.id, result ?? null)
+      let updatedEvent = await this.queue.markAsProcessed(event.id, result ?? null)
 
       this.emitWorkerEvent(updatedEvent, JobStatus.DONE)
     } catch (error: unknown) {
       let message = error instanceof Error ? error.message : 'Unknown error'
       this.logger.error(`Job: ${event.id} Couldn't be processed --- ${message}`)
 
-      let updatedEvent = await this.queueService.markAsFailed(event.id)
+      let updatedEvent = await this.queue.markAsFailed(event.id)
 
       this.emitWorkerEvent(updatedEvent, JobStatus.FAILED)
     } finally {

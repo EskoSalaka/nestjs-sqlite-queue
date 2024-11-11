@@ -8,7 +8,7 @@ export interface CreateJobOptions {
 }
 
 @Injectable()
-export class SQLiteQueueService {
+export class SQLiteQueue {
   constructor(private readonly job: typeof JobModel) {}
 
   async getJob(id: Job['id'], tx?: Transaction): Promise<Job | null> {
@@ -21,21 +21,35 @@ export class SQLiteQueueService {
     return job
   }
 
-  async createJob(name?: Job['name'], data?: Job['data'], tx?: Transaction): Promise<Job | null> {
-    const job = (await this.job.create(
+  async createJob(jobData: JobModel['data'] | null, tx?: Transaction): Promise<Job>
+  async createJob(jobName: string, jobData: JobModel['data'] | null, tx?: Transaction): Promise<Job>
+
+  async createJob(
+    jobNameOrData: Job['name'] | JobModel['data'] | null,
+    jobDataOrTx?: JobModel['data'] | Transaction | null,
+    tx?: Transaction
+  ): Promise<Job | null> {
+    let jobName: Job['name'] | undefined
+    let jobData: JobModel['data'] | null = null
+
+    if (typeof jobNameOrData === 'string') {
+      jobName = jobNameOrData
+      jobData = jobDataOrTx as JobModel['data'] | null
+    } else {
+      jobData = jobNameOrData
+      tx = jobDataOrTx as Transaction
+    }
+
+    const job = await this.job.create(
       {
-        name: name || null,
-        data: data || null,
+        name: jobName,
+        data: jobData,
         status: JobStatus.NEW,
       },
-      {
-        raw: true,
-        plain: true,
-        transaction: tx,
-      }
-    )) as Job
+      { transaction: tx }
+    )
 
-    return job
+    return job.toJSON()
   }
 
   async getLatestNewJob(name: Job['name'], tx?: Transaction): Promise<Job | null>
