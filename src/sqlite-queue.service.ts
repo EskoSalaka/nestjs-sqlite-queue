@@ -12,13 +12,12 @@ export class SQLiteQueue {
   constructor(private readonly job: typeof JobModel) {}
 
   async getJob(id: Job['id'], tx?: Transaction): Promise<Job | null> {
-    const job = (await this.job.findByPk(id, {
-      raw: true,
+    const job = await this.job.findByPk(id, {
       plain: true,
       transaction: tx,
-    })) as Job | null
+    })
 
-    return job
+    return job?.dataValues ?? null
   }
 
   async createJob(jobData: JobModel['data'] | null, tx?: Transaction): Promise<Job>
@@ -42,14 +41,14 @@ export class SQLiteQueue {
 
     const job = await this.job.create(
       {
-        name: jobName,
+        name: jobName ?? null,
         data: jobData,
         status: JobStatus.NEW,
       },
       { transaction: tx }
     )
 
-    return job.toJSON()
+    return job?.dataValues ?? null
   }
 
   async getLatestNewJob(name: Job['name'], tx?: Transaction): Promise<Job | null>
@@ -68,15 +67,14 @@ export class SQLiteQueue {
       tx = nameOrTx
     }
 
-    const job = (await this.job.findOne({
+    const job = await this.job.findOne({
       where,
       order: [['createdAt', 'ASC']],
-      raw: true,
       plain: true,
       transaction: tx,
-    })) as Job | null
+    })
 
-    return job
+    return job?.dataValues ?? null
   }
 
   async markAsNew(id: Job['id'], tx?: Transaction): Promise<Job | null> {
@@ -91,7 +89,7 @@ export class SQLiteQueue {
 
     await job.save({ transaction: tx })
 
-    return job.toJSON()
+    return job?.dataValues ?? null
   }
 
   async markAsProcessing(id: Job['id'], tx?: Transaction): Promise<Job | null> {
@@ -110,7 +108,7 @@ export class SQLiteQueue {
       { transaction: tx }
     )
 
-    return job.toJSON()
+    return job?.dataValues ?? null
   }
 
   async markAsProcessed(
@@ -133,7 +131,7 @@ export class SQLiteQueue {
       { transaction: tx }
     )
 
-    return job.toJSON()
+    return job?.dataValues ?? null
   }
 
   async markAsFailed(id: Job['id'], tx?: Transaction): Promise<Job | null> {
@@ -152,7 +150,7 @@ export class SQLiteQueue {
       { transaction: tx }
     )
 
-    return job.toJSON()
+    return job?.dataValues ?? null
   }
 
   async markAsStalled(id: Job['id'], tx?: Transaction): Promise<Job | null> {
@@ -171,7 +169,7 @@ export class SQLiteQueue {
       { transaction: tx }
     )
 
-    return job.toJSON()
+    return job?.dataValues ?? null
   }
 
   async createTransaction(): Promise<Transaction> {
@@ -182,7 +180,7 @@ export class SQLiteQueue {
     return this.job.sequelize
   }
 
-  async getModel() {
+  async getModel(): Promise<typeof JobModel> {
     return this.job
   }
 }
