@@ -12,7 +12,6 @@ export class TestConsumer {
 
   @Process()
   async handler(job: Job) {
-    log('handler')
     return this.testRun()
   }
 
@@ -21,14 +20,10 @@ export class TestConsumer {
   }
 
   @OnWorkerEvent(JobStatus.PROCESSING)
-  onActive(job: Job) {
-    this.logger.log('Processing job')
-  }
+  onActive(job: Job) {}
 
   @OnWorkerEvent(JobStatus.DONE)
-  onDone(job: Job) {
-    this.logger.log('Job done')
-  }
+  onDone(job: Job) {}
 
   @OnWorkerEvent(JobStatus.FAILED)
   onFailed(job: Job) {}

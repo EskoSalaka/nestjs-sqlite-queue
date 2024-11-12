@@ -71,6 +71,10 @@ describe('SQLiteQueueModule (e2e)', () => {
     }
   })
 
+  beforeEach((): void => {
+    jest.setTimeout(8000)
+  })
+
   it('should be defined', () => {
     expect(app).toBeDefined()
   })
@@ -226,7 +230,7 @@ describe('SQLiteQueueModule (e2e)', () => {
       it('should fail to process a named job', async () => {
         let queue = app.get(getQueueToken(NAMED_JOBS_TEST_QUEUE)) as SQLiteQueue
         let testService = app.get(TestService)
-        jest.spyOn(testService, 'testRun').mockImplementation(async () => {
+        jest.spyOn(testService, 'testRun2').mockImplementation(async () => {
           await new Promise((resolve) => setTimeout(resolve, 2000))
           throw new Error('Test error')
         })
@@ -257,6 +261,71 @@ describe('SQLiteQueueModule (e2e)', () => {
         expect(jobAfterFailed.data).toEqual({ test: 'test' })
         expect(jobAfterFailed.name).toBe(NAMED_TEST_JOB_2)
         expect(jobAfterFailed.resultData).toBeNull()
+      })
+
+      it('should process a named job and fail another named job correctly', async () => {
+        let queue = app.get(getQueueToken(NAMED_JOBS_TEST_QUEUE)) as SQLiteQueue
+        let testService = app.get(TestService)
+        jest.spyOn(testService, 'testRun').mockImplementation(async () => {
+          await new Promise((resolve) => setTimeout(resolve, 2000))
+          return { test: 'test', status: 'done', someData: 'someData' }
+        })
+
+        jest.spyOn(testService, 'testRun2').mockImplementation(async () => {
+          await new Promise((resolve) => setTimeout(resolve, 2000))
+          throw new Error('Test error')
+        })
+
+        let job1 = await queue.createJob(NAMED_TEST_JOB_1, { test: 'test1' })
+        let job2 = await queue.createJob(NAMED_TEST_JOB_2, { test: 'test2' })
+
+        let newJob1 = await queue.getJob(job1.id)
+        let newJob2 = await queue.getJob(job2.id)
+
+        expect(job1).toBeDefined()
+        expect(job2).toBeDefined()
+        expect(newJob1).toBeDefined()
+        expect(newJob2).toBeDefined()
+        expect(newJob1.status).toBe('NEW')
+        expect(newJob2.status).toBe('NEW')
+        expect(newJob1.data).toEqual({ test: 'test1' })
+        expect(newJob2.data).toEqual({ test: 'test2' })
+        expect(newJob1.name).toBe(NAMED_TEST_JOB_1)
+        expect(newJob2.name).toBe(NAMED_TEST_JOB_2)
+
+        await new Promise((resolve) => setTimeout(resolve, 2500))
+        let jobAfterProcessing1 = await queue.getJob(job1.id)
+        let jobAfterProcessing2 = await queue.getJob(job2.id)
+
+        expect(jobAfterProcessing1).toBeDefined()
+        expect(jobAfterProcessing2).toBeDefined()
+        expect(jobAfterProcessing1.status).toBe('PROCESSING')
+        expect(jobAfterProcessing2.status).toBe('PROCESSING')
+        expect(jobAfterProcessing1.data).toEqual({ test: 'test1' })
+        expect(jobAfterProcessing2.data).toEqual({ test: 'test2' })
+        expect(jobAfterProcessing1.name).toBe(NAMED_TEST_JOB_1)
+        expect(jobAfterProcessing2.name).toBe(NAMED_TEST_JOB_2)
+        expect(jobAfterProcessing1.resultData).toBeNull()
+        expect(jobAfterProcessing2.resultData).toBeNull()
+
+        await new Promise((resolve) => setTimeout(resolve, 2000))
+        let jobAfterDone1 = await queue.getJob(job1.id)
+        let jobAfterFailed2 = await queue.getJob(job2.id)
+
+        expect(jobAfterDone1).toBeDefined()
+        expect(jobAfterFailed2).toBeDefined()
+        expect(jobAfterDone1.status).toBe('DONE')
+        expect(jobAfterFailed2.status).toBe('FAILED')
+        expect(jobAfterDone1.data).toEqual({ test: 'test1' })
+        expect(jobAfterFailed2.data).toEqual({ test: 'test2' })
+        expect(jobAfterDone1.name).toBe(NAMED_TEST_JOB_1)
+        expect(jobAfterFailed2.name).toBe(NAMED_TEST_JOB_2)
+        expect(jobAfterDone1.resultData).toEqual({
+          test: 'test',
+          status: 'done',
+          someData: 'someData',
+        })
+        expect(jobAfterFailed2.resultData).toBeNull()
       })
 
       it('should fail to process a named job with a non existing method', async () => {

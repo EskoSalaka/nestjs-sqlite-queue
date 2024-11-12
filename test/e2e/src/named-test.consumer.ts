@@ -16,7 +16,7 @@ export class TestConsumerWithNamedJobs {
 
   @Process('NAMED_TEST_JOB_2')
   async handler2(job) {
-    return this.testService.testRun()
+    return this.testService.testRun2()
   }
 
   test() {
