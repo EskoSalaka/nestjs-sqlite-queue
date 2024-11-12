@@ -4,6 +4,7 @@ import { getWorkerEventName } from './sqlite-queue.util'
 import EventEmitter from 'node:events'
 import type { SQLiteQueueConfig } from './sqlite-queue.interfaces'
 import type { SQLiteQueue } from './sqlite-queue.service'
+import { SQLITE_QUEUE_DEFAULT_QUEUE_NAME } from './sqlite-queue.constants'
 
 @Injectable()
 export class SQLiteQueueWorker {
@@ -18,7 +19,9 @@ export class SQLiteQueueWorker {
     private readonly eventEmitter: EventEmitter
   ) {
     this.maxParallelJobs = config.maxParallelJobs
-    this.logger = new Logger('QueueProcessor:' + this.config.name)
+    this.logger = new Logger(
+      'QueueProcessor:' + (this.config.name ?? SQLITE_QUEUE_DEFAULT_QUEUE_NAME)
+    )
 
     setInterval(() => {
       this.consumeEvents()
@@ -49,7 +52,7 @@ export class SQLiteQueueWorker {
       this.emitWorkerEvent(updatedEvent, JobStatus.DONE)
     } catch (error: unknown) {
       let message = error instanceof Error ? error.message : 'Unknown error'
-      this.logger.error(`Job: ${event.id} Couldn't be processed --- ${message}`)
+      this.logger.error(`Job: ${event.id} Processing a job failed --- ${message}`)
 
       let updatedEvent = await this.queue.markAsFailed(event.id)
 
@@ -70,10 +73,8 @@ export class SQLiteQueueWorker {
       if (method) {
         return method(event)
       } else {
-        this.logger.error(
-          `Processor method not found for a named job: ${event.name}. When using named jobs, you must use the 
-          @Processor('jobName') decorator to create processors for each unique name added to a queue`
-        )
+        throw new Error(`Processor method not found for a named job: ${event.name}. When using named jobs, you must use the 
+          @Processor('jobName') decorator to create processors for each unique name added to a queue`)
       }
     }
 
@@ -81,7 +82,10 @@ export class SQLiteQueueWorker {
   }
 
   private emitWorkerEvent(event: Job, status: JobStatus) {
-    this.eventEmitter.emit(getWorkerEventName(this.config.name, status), event)
+    this.eventEmitter.emit(
+      getWorkerEventName(this.config.name ?? SQLITE_QUEUE_DEFAULT_QUEUE_NAME, status),
+      event
+    )
   }
 
   private defaultHandler(event: Job) {
