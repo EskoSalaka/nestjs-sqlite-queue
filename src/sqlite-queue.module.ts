@@ -20,12 +20,11 @@ import { createJobModel, JobModel, type JobStatus } from './models/job.model'
 import { defer, lastValueFrom } from 'rxjs'
 import { EventEmitter } from 'node:events'
 import { SQLiteQueueMetadataAccessor } from './sqlite-queue.meta-accessor'
-import { log } from 'node:console'
 import { ModuleRef } from '@nestjs/core'
 
 @Global()
 @Module({})
-export class SQLiteQueueModule implements OnApplicationShutdown {
+export class SQLiteQueueModule {
   constructor(
     @Inject(SQLITE_QUEUE_CONNECTION_NAME_TOKEN) private readonly connectionName: string,
     private readonly moduleRef: ModuleRef
@@ -151,9 +150,5 @@ export class SQLiteQueueModule implements OnApplicationShutdown {
         return sequelize
       })
     )
-  }
-
-  async onApplicationShutdown(signal?: string) {
-    log('Closing connection', this.connectionName)
   }
 }
