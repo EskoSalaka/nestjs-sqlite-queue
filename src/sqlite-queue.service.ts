@@ -1,6 +1,6 @@
 import { Injectable } from '@nestjs/common'
 import { JobModel, JobStatus, type Job } from './models/job.model'
-import type { Sequelize, Transaction, WhereOptions } from 'sequelize'
+import { Sequelize, Transaction, WhereOptions } from 'sequelize'
 
 export interface CreateJobOptions {
   jobName?: string | null | undefined
@@ -9,6 +9,8 @@ export interface CreateJobOptions {
 
 @Injectable()
 export class SQLiteQueue {
+  private _isPaused: boolean = false
+
   constructor(private readonly job: typeof JobModel) {}
 
   async getJob(id: Job['id'], tx?: Transaction): Promise<Job | null> {
@@ -173,7 +175,7 @@ export class SQLiteQueue {
   }
 
   async createTransaction(): Promise<Transaction> {
-    return this.job.sequelize.transaction()
+    return this.job.sequelize.transaction({ type: Transaction.TYPES.IMMEDIATE })
   }
 
   async getConnection(): Promise<Sequelize> {
@@ -182,5 +184,13 @@ export class SQLiteQueue {
 
   async getModel(): Promise<typeof JobModel> {
     return this.job
+  }
+
+  setPaused(paused: boolean) {
+    this._isPaused = paused
+  }
+
+  isPaused() {
+    return this._isPaused
   }
 }

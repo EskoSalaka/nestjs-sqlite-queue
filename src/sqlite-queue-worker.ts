@@ -29,15 +29,21 @@ export class SQLiteQueueWorker {
   }
 
   private async consumeEvents() {
-    const transaction = await this.queue.createTransaction()
-    const event = await this.queue.getLatestNewJob(transaction)
-
-    if (!event || (this.maxParallelJobs && this.activeJobs >= this.maxParallelJobs)) {
-      await transaction.commit()
+    if (this.queue.isPaused()) {
       return
     }
 
-    await this.queue.markAsProcessing(event.id, transaction)
+    const transaction = await this.queue.createTransaction()
+
+    let event = await this.queue.getLatestNewJob(transaction)
+
+    if (!event || (this.maxParallelJobs && this.activeJobs >= this.maxParallelJobs)) {
+      await transaction.commit()
+
+      return
+    }
+
+    event = await this.queue.markAsProcessing(event.id, transaction)
     await transaction.commit()
     this.emitWorkerEvent(event, JobStatus.PROCESSING)
 
@@ -47,16 +53,16 @@ export class SQLiteQueueWorker {
 
     try {
       const result = await this.handleJob(event)
-      let updatedEvent = await this.queue.markAsProcessed(event.id, result ?? null)
+      event = await this.queue.markAsProcessed(event.id, result ?? null)
 
-      this.emitWorkerEvent(updatedEvent, JobStatus.DONE)
+      this.emitWorkerEvent(event, JobStatus.DONE)
     } catch (error: unknown) {
       let message = error instanceof Error ? error.message : 'Unknown error'
       this.logger.error(`Job: ${event.id} Processing a job failed --- ${message}`)
 
-      let updatedEvent = await this.queue.markAsFailed(event.id)
+      event = await this.queue.markAsFailed(event.id)
 
-      this.emitWorkerEvent(updatedEvent, JobStatus.FAILED)
+      this.emitWorkerEvent(event, JobStatus.FAILED)
     } finally {
       if (this.maxParallelJobs) {
         this.activeJobs--
