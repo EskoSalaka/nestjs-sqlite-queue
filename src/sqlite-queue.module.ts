@@ -97,10 +97,11 @@ export class SQLiteQueueModule {
 
     for (const workerProcessMethodWithMeta of workerProcessMethods) {
       if (!workerProcessMethodWithMeta.methodMeta) {
-        worker['defaultHandler'] = workerProcessMethodWithMeta.method.bind(consumerInstance)
+        worker['defaultHandler'] = (job: any) =>
+          consumerInstance[workerProcessMethodWithMeta.methodName](job)
       } else {
-        worker[workerProcessMethodWithMeta.methodMeta as string] =
-          workerProcessMethodWithMeta.method.bind(consumerInstance)
+        worker[workerProcessMethodWithMeta.methodMeta as string] = (job: any) =>
+          consumerInstance[workerProcessMethodWithMeta.methodName](job)
       }
     }
 
@@ -110,7 +111,7 @@ export class SQLiteQueueModule {
           config.name ?? SQLITE_QUEUE_DEFAULT_QUEUE_NAME,
           workerEventMethodWithMeta.methodMeta as JobStatus
         ),
-        workerEventMethodWithMeta.method.bind(consumerInstance)
+        (job: any) => consumerInstance[workerEventMethodWithMeta.methodName](job)
       )
     }
   }
@@ -146,6 +147,7 @@ export class SQLiteQueueModule {
         }
 
         const sequelize = new Sequelize(config)
+        sequelize.query('PRAGMA journal_mode=WAL;')
 
         return sequelize
       })

@@ -95,14 +95,18 @@ export function createJobModel(tableName: string, sequelize: Sequelize) {
       },
       name: {
         type: DataType.STRING,
+        allowNull: true,
+        defaultValue: null,
       },
       data: {
         type: DataType.JSON,
         allowNull: true,
+        defaultValue: null,
       },
       resultData: {
         type: DataType.JSON,
         allowNull: true,
+        defaultValue: null,
       },
       status: {
         type: DataType.ENUM,
@@ -116,22 +120,28 @@ export function createJobModel(tableName: string, sequelize: Sequelize) {
       },
       createdAt: {
         type: DataType.DATE,
+        allowNull: true,
+        defaultValue: DataType.NOW,
       },
       processingAt: {
         type: DataType.DATE,
         allowNull: true,
+        defaultValue: null,
       },
       doneAt: {
         type: DataType.DATE,
         allowNull: true,
+        defaultValue: null,
       },
       stalledAt: {
         type: DataType.DATE,
         allowNull: true,
+        defaultValue: null,
       },
       failedAt: {
         type: DataType.DATE,
         allowNull: true,
+        defaultValue: null,
       },
       updatedAt: {
         type: DataType.DATE,
