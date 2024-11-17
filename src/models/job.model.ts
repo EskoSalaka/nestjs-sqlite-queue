@@ -84,7 +84,7 @@ export class JobModel extends Model<Job> {
   updatedAt: Date
 }
 
-export function createJobModel(tableName: string, sequelize: Sequelize) {
+export function createJobModelDefinition(tableName: string, sequelize: Sequelize) {
   return sequelize.define(
     tableName,
     {

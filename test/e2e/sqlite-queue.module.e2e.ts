@@ -31,10 +31,10 @@ describe('SQLiteQueueModule (e2e)', () => {
     const moduleFixture: TestingModule = await Test.createTestingModule({
       imports: [
         SQLiteQueueModule.forRootAsync({
-          useFactory: () => ({ storagePath: './test/e2e/src/temp/' + TEST_CONNECTION_1 }),
+          useFactory: () => ({ storagePath: './test/e2e/temp/' + TEST_CONNECTION_1 }),
         }),
         SQLiteQueueModule.forRootAsync(
-          { useFactory: () => ({ storagePath: './test/e2e/src/temp/' + TEST_CONNECTION_2 }) },
+          { useFactory: () => ({ storagePath: './test/e2e/temp/' + TEST_CONNECTION_2 }) },
           'TEST_CONNECTION_2'
         ),
         SQLiteQueueModule.registerQueue({}),
@@ -59,8 +59,8 @@ describe('SQLiteQueueModule (e2e)', () => {
 
     await app.close()
 
-    let tempDpPath1 = path.join(__dirname, 'src', 'temp', TEST_CONNECTION_1)
-    let tempDpPath2 = path.join(__dirname, 'src', 'temp', TEST_CONNECTION_2)
+    let tempDpPath1 = path.join(__dirname, 'temp', TEST_CONNECTION_1)
+    let tempDpPath2 = path.join(__dirname, 'temp', TEST_CONNECTION_2)
 
     if (fs.existsSync(tempDpPath1)) {
       fs.rmSync(tempDpPath1, { recursive: true, force: true })
@@ -105,8 +105,8 @@ describe('SQLiteQueueModule (e2e)', () => {
     })
 
     it('should create the sqlite files to the temp drectory', async () => {
-      let tempDpPath1 = path.join(__dirname, 'src', 'temp', TEST_CONNECTION_1)
-      let tempDpPath2 = path.join(__dirname, 'src', 'temp', TEST_CONNECTION_2)
+      let tempDpPath1 = path.join(__dirname, 'temp', TEST_CONNECTION_1)
+      let tempDpPath2 = path.join(__dirname, 'temp', TEST_CONNECTION_2)
 
       expect(fs.existsSync(tempDpPath1)).toBeTruthy()
       expect(fs.existsSync(tempDpPath2)).toBeTruthy()

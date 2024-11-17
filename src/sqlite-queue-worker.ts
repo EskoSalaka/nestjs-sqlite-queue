@@ -35,7 +35,7 @@ export class SQLiteQueueWorker {
 
     const transaction = await this.queue.createTransaction()
 
-    let event = await this.queue.getLatestNewJob(transaction)
+    let event = await this.queue.getFirstNewJob(transaction)
 
     if (!event || (this.maxParallelJobs && this.activeJobs >= this.maxParallelJobs)) {
       await transaction.commit()

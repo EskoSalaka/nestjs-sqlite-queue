@@ -14,9 +14,15 @@ import {
 } from './sqlite-queue.constants'
 import { SQLiteQueueWorker } from './sqlite-queue-worker'
 import { MetadataScanner, DiscoveryService, Reflector } from '@nestjs/core'
-import { Sequelize, SequelizeOptions } from 'sequelize-typescript'
-import { getConnectionToken, getQueueToken, getWorkerEventName } from './sqlite-queue.util'
-import { createJobModel, JobModel, type JobStatus } from './models/job.model'
+import { Sequelize } from 'sequelize-typescript'
+import {
+  createJobModel,
+  createSequelizeConnection,
+  getConnectionToken,
+  getQueueToken,
+  getWorkerEventName,
+} from './sqlite-queue.util'
+import { JobModel, type JobStatus } from './models/job.model'
 import { defer, lastValueFrom } from 'rxjs'
 import { EventEmitter } from 'node:events'
 import { SQLiteQueueMetadataAccessor } from './sqlite-queue.meta-accessor'
@@ -57,8 +63,7 @@ export class SQLiteQueueModule {
     let sqliteQueueProvider = {
       provide: getQueueToken(config.name ?? SQLITE_QUEUE_DEFAULT_QUEUE_NAME),
       useFactory: async (dbConnection: Sequelize, metaAccessor: SQLiteQueueMetadataAccessor) => {
-        let model = createJobModel(config.name, dbConnection)
-        await model.sync({ force: false })
+        let model = await createJobModel(config.name, dbConnection, { force: false })
 
         let sqliteQueue = new SQLiteQueue(model as typeof JobModel)
         await SQLiteQueueModule.registerWorker(config, metaAccessor, sqliteQueue)
@@ -133,23 +138,7 @@ export class SQLiteQueueModule {
   ): Promise<Sequelize> {
     return lastValueFrom(
       defer(async () => {
-        let config: SequelizeOptions = {
-          dialect: 'sqlite',
-          repositoryMode: true,
-
-          storage: options.storagePath,
-          dialectOptions: {
-            mode: 0,
-          },
-          models: [],
-          logging: false,
-          //logging: (msg) => log(options.storagePath, msg),
-        }
-
-        const sequelize = new Sequelize(config)
-        sequelize.query('PRAGMA journal_mode=WAL;')
-
-        return sequelize
+        return await createSequelizeConnection(options)
       })
     )
   }
