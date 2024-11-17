@@ -25,7 +25,7 @@ export async function createSequelizeConnection(config: SQLiteQueueModuleConfig)
   let sequelizeConnectionOptions: SequelizeOptions = {
     dialect: 'sqlite',
     repositoryMode: true,
-    storage: config.storagePath,
+    storage: config.storage,
     dialectOptions: {
       mode: 0,
     },

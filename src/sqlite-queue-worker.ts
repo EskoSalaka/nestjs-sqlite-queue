@@ -10,8 +10,8 @@ import { SQLITE_QUEUE_DEFAULT_QUEUE_NAME } from './sqlite-queue.constants'
 export class SQLiteQueueWorker {
   private readonly logger: Logger
 
-  private activeJobs = 0
-  private maxParallelJobs
+  private activeJobs: number = 0
+  private maxParallelJobs: number = 0
 
   constructor(
     private readonly config: SQLiteQueueConfig,

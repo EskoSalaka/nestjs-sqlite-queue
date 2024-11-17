@@ -31,10 +31,10 @@ describe('SQLiteQueueModule (e2e)', () => {
     const moduleFixture: TestingModule = await Test.createTestingModule({
       imports: [
         SQLiteQueueModule.forRootAsync({
-          useFactory: () => ({ storagePath: './test/e2e/temp/' + TEST_CONNECTION_1 }),
+          useFactory: () => ({ storage: './test/e2e/temp/' + TEST_CONNECTION_1 }),
         }),
         SQLiteQueueModule.forRootAsync(
-          { useFactory: () => ({ storagePath: './test/e2e/temp/' + TEST_CONNECTION_2 }) },
+          { useFactory: () => ({ storage: './test/e2e/temp/' + TEST_CONNECTION_2 }) },
           'TEST_CONNECTION_2'
         ),
         SQLiteQueueModule.registerQueue({}),

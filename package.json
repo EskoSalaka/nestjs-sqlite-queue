@@ -5,7 +5,8 @@
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
   "scripts": {
-    "test": "jest --runInBand --testTimeout 30000",
+    "test": "jest",
+    "test:e2e": "jest --runInBand --testTimeout 30000 --config ./test/e2e/jest-e2e.json",
     "build": "tsc -p tsconfig.json",
     "format": "prettier --write \"**/*.ts\""
   },
@@ -59,7 +60,6 @@
     "transform": {
       "^.+\\.(t|j)s$": "ts-jest"
     },
-    "testEnvironment": "node",
-    "forceExit": true
+    "testEnvironment": "node"
   }
 }

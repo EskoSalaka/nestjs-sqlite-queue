@@ -19,7 +19,7 @@ describe('SQLiteQueue', () => {
           provide: Sequelize,
           useFactory: async () => {
             return createSequelizeConnection({
-              storagePath: ':memory:',
+              storage: ':memory:',
             })
           },
         },

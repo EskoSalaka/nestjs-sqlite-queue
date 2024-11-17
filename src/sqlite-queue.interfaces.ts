@@ -1,14 +1,15 @@
 import type { ModuleMetadata } from '@nestjs/common'
+import type { SyncOptions } from 'sequelize'
 
 export interface SQLiteQueueConfig {
   name?: string
   connection?: string
   maxParallelJobs?: number
-  synchronize?: boolean
+  synchronize?: SyncOptions
 }
 
 export interface SQLiteQueueModuleConfig {
-  storagePath: string
+  storage: string
 }
 
 export interface SQLiteQueueModuleAsyncConfig extends Pick<ModuleMetadata, 'imports'> {
