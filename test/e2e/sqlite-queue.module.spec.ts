@@ -75,36 +75,42 @@ describe('SQLiteQueueModule (e2e)', () => {
     jest.setTimeout(8000)
   })
 
-  it('should be defined', () => {
-    expect(app).toBeDefined()
+  afterEach((): void => {
+    jest.clearAllMocks()
   })
 
-  it('should register the connections', async () => {
-    let connection1 = app.get(getConnectionToken()) //DEFAULT_CONNECTION
-    let connection2 = app.get(getConnectionToken(TEST_CONNECTION_2))
-    let connectionWithDefault = app.get(getConnectionToken(SQLITE_QUEUE_DEFAULT_CONNECTION_NAME))
+  describe('Module', () => {
+    it('should be defined', () => {
+      expect(app).toBeDefined()
+    })
 
-    expect(connection1).toBeDefined()
-    expect(connection2).toBeDefined()
-    expect(connectionWithDefault).toBeDefined()
-  })
+    it('should register the connections', async () => {
+      let connection1 = app.get(getConnectionToken()) //DEFAULT_CONNECTION
+      let connection2 = app.get(getConnectionToken(TEST_CONNECTION_2))
+      let connectionWithDefault = app.get(getConnectionToken(SQLITE_QUEUE_DEFAULT_CONNECTION_NAME))
 
-  it('should register the queues', async () => {
-    let queue = app.get(getQueueToken()) // DEFAULT_QUEUE
-    let queue2 = app.get(getQueueToken(NAMED_JOBS_TEST_QUEUE))
-    let queueWithDefault = app.get(getQueueToken(SQLITE_QUEUE_DEFAULT_QUEUE_NAME))
+      expect(connection1).toBeDefined()
+      expect(connection2).toBeDefined()
+      expect(connectionWithDefault).toBeDefined()
+    })
 
-    expect(queue).toBeDefined()
-    expect(queue2).toBeDefined()
-    expect(queueWithDefault).toBeDefined()
-  })
+    it('should register the queues', async () => {
+      let queue = app.get(getQueueToken()) // DEFAULT_QUEUE
+      let queue2 = app.get(getQueueToken(NAMED_JOBS_TEST_QUEUE))
+      let queueWithDefault = app.get(getQueueToken(SQLITE_QUEUE_DEFAULT_QUEUE_NAME))
 
-  it('should create the sqlite files to the temp drectory', async () => {
-    let tempDpPath1 = path.join(__dirname, 'src', 'temp', TEST_CONNECTION_1)
-    let tempDpPath2 = path.join(__dirname, 'src', 'temp', TEST_CONNECTION_2)
+      expect(queue).toBeDefined()
+      expect(queue2).toBeDefined()
+      expect(queueWithDefault).toBeDefined()
+    })
 
-    expect(fs.existsSync(tempDpPath1)).toBeTruthy()
-    expect(fs.existsSync(tempDpPath2)).toBeTruthy()
+    it('should create the sqlite files to the temp drectory', async () => {
+      let tempDpPath1 = path.join(__dirname, 'src', 'temp', TEST_CONNECTION_1)
+      let tempDpPath2 = path.join(__dirname, 'src', 'temp', TEST_CONNECTION_2)
+
+      expect(fs.existsSync(tempDpPath1)).toBeTruthy()
+      expect(fs.existsSync(tempDpPath2)).toBeTruthy()
+    })
   })
 
   describe('Queue tests', () => {
@@ -112,77 +118,104 @@ describe('SQLiteQueueModule (e2e)', () => {
       it('should add a a new unnamed job with data to the queue and process it', async () => {
         let queue = app.get(getQueueToken()) as SQLiteQueue
         let testService = app.get(TestService)
-        jest.spyOn(testService, 'testRun').mockImplementation(async () => {
+        let testConsumer = app.get(TestConsumer)
+
+        jest.spyOn(testService, 'testRun').mockImplementationOnce(async (job) => {
           await new Promise((resolve) => setTimeout(resolve, 2000))
           return { test: 'test', status: 'done', someData: 'someData' }
         })
+        jest.spyOn(testService, 'testOnActive')
+        jest.spyOn(testService, 'testOnDone')
+        jest.spyOn(testService, 'testOnFailed')
+        jest.spyOn(testConsumer, 'handler')
+        jest.spyOn(testConsumer, 'onActive')
+        jest.spyOn(testConsumer, 'onDone')
+        jest.spyOn(testConsumer, 'onFailed')
+        jest.spyOn(testConsumer, 'testRun')
 
-        let job = await queue.createJob({ test: 'test' })
-        let newJob = await queue.getJob(job.id)
+        let succeedingJob = await queue.createJob({ test: 'test' })
+        let newSucceedingJob = await queue.getJob(succeedingJob.id)
 
-        expect(job).toBeDefined()
-        expect(newJob).toBeDefined()
-        expect(newJob.status).toBe('NEW')
-        expect(newJob.data).toEqual({ test: 'test' })
-        expect(newJob.name).toBeNull()
+        expect(succeedingJob).toBeDefined()
+        expect(newSucceedingJob).toBeDefined()
+        expect(newSucceedingJob.id).toBe(succeedingJob.id)
+        expect(newSucceedingJob.status).toBe('NEW')
+        expect(newSucceedingJob.data).toEqual({ test: 'test' })
+        expect(newSucceedingJob.name).toBeNull()
 
         await new Promise((resolve) => setTimeout(resolve, 1000))
-        let jobAfterProcessing = await queue.getJob(job.id)
+        let succeedingJobAfterProcessing = await queue.getJob(succeedingJob.id)
 
-        expect(jobAfterProcessing).toBeDefined()
-        expect(jobAfterProcessing.status).toBe('PROCESSING')
-        expect(jobAfterProcessing.data).toEqual({ test: 'test' })
-        expect(jobAfterProcessing.name).toBeNull()
-        expect(jobAfterProcessing.resultData).toBeNull()
+        expect(succeedingJobAfterProcessing).toBeDefined()
+        expect(succeedingJobAfterProcessing.status).toBe('PROCESSING')
+        expect(succeedingJobAfterProcessing.id).toBe(succeedingJob.id)
+        expect(succeedingJobAfterProcessing.data).toEqual({ test: 'test' })
+        expect(succeedingJobAfterProcessing.name).toBeNull()
+        expect(succeedingJobAfterProcessing.resultData).toBeNull()
+
+        expect(testConsumer.testRun).toHaveBeenCalledTimes(1)
+        expect(testConsumer.testRun).toHaveBeenCalledWith(succeedingJobAfterProcessing)
+        expect(testConsumer.handler).toHaveBeenCalledTimes(1)
+        expect(testConsumer.handler).toHaveBeenCalledWith(succeedingJobAfterProcessing)
+        expect(testService.testRun).toHaveBeenCalledTimes(1)
+        expect(testConsumer.onActive).toHaveBeenCalledTimes(1)
+        expect(testConsumer.onActive).toHaveBeenCalledWith(succeedingJobAfterProcessing)
 
         await new Promise((resolve) => setTimeout(resolve, 2000))
-        let jobAfterDone = await queue.getJob(job.id)
+        let succeedingJobAfterDone = await queue.getJob(newSucceedingJob.id)
 
-        expect(jobAfterDone).toBeDefined()
-        expect(jobAfterDone.status).toBe('DONE')
-        expect(jobAfterDone.data).toEqual({ test: 'test' })
-        expect(jobAfterDone.name).toBeNull()
-        expect(jobAfterDone.resultData).toEqual({
+        expect(succeedingJobAfterDone).toBeDefined()
+        expect(succeedingJobAfterDone.status).toBe('DONE')
+        expect(succeedingJobAfterDone.data).toEqual({ test: 'test' })
+        expect(succeedingJobAfterDone.name).toBeNull()
+        expect(succeedingJobAfterDone.resultData).toEqual({
           test: 'test',
           status: 'done',
           someData: 'someData',
         })
-      })
 
-      it('should fail to process a job', async () => {
-        let queue = app.get(getQueueToken()) as SQLiteQueue
-        let testService = app.get(TestService)
-        jest.spyOn(testService, 'testRun').mockImplementation(async () => {
+        jest.spyOn(testService, 'testRun').mockImplementationOnce(async () => {
           await new Promise((resolve) => setTimeout(resolve, 2000))
           throw new Error('Test error')
         })
 
-        let job = await queue.createJob({ test: 'test' })
-        let newJob = await queue.getJob(job.id)
+        let failingJob = await queue.createJob({ test: 'failingTest' })
+        let newFailingJob = await queue.getJob(failingJob.id)
 
-        expect(job).toBeDefined()
-        expect(newJob).toBeDefined()
-        expect(newJob.status).toBe('NEW')
-        expect(newJob.data).toEqual({ test: 'test' })
-        expect(newJob.name).toBeNull()
+        expect(failingJob).toBeDefined()
+        expect(newFailingJob).toBeDefined()
+        expect(newFailingJob.status).toBe('NEW')
+        expect(newFailingJob.data).toEqual({ test: 'failingTest' })
+        expect(newFailingJob.id).toBe(failingJob.id)
+        expect(newFailingJob.name).toBeNull()
 
         await new Promise((resolve) => setTimeout(resolve, 1000))
-        let jobAfterProcessing = await queue.getJob(job.id)
+        let failingJobAfterProcessing = await queue.getJob(failingJob.id)
 
-        expect(jobAfterProcessing).toBeDefined()
-        expect(jobAfterProcessing.status).toBe('PROCESSING')
-        expect(jobAfterProcessing.data).toEqual({ test: 'test' })
-        expect(jobAfterProcessing.name).toBeNull()
-        expect(jobAfterProcessing.resultData).toBeNull()
+        expect(failingJobAfterProcessing).toBeDefined()
+        expect(failingJobAfterProcessing.status).toBe('PROCESSING')
+        expect(failingJobAfterProcessing.id).toBe(failingJob.id)
+        expect(failingJobAfterProcessing.data).toEqual({ test: 'failingTest' })
+        expect(failingJobAfterProcessing.name).toBeNull()
+        expect(failingJobAfterProcessing.resultData).toBeNull()
+
+        expect(testConsumer.testRun).toHaveBeenCalledTimes(2)
+        expect(testConsumer.testRun).toHaveBeenCalledWith(failingJobAfterProcessing)
+        expect(testConsumer.handler).toHaveBeenCalledTimes(2)
+        expect(testConsumer.handler).toHaveBeenCalledWith(failingJobAfterProcessing)
+        expect(testService.testRun).toHaveBeenCalledTimes(2)
+        expect(testConsumer.onActive).toHaveBeenCalledTimes(2)
+        expect(testConsumer.onActive).toHaveBeenCalledWith(failingJobAfterProcessing)
 
         await new Promise((resolve) => setTimeout(resolve, 2000))
-        let jobAfterFailed = await queue.getJob(job.id)
+        let failingJobAfterFailed = await queue.getJob(newFailingJob.id)
 
-        expect(jobAfterFailed).toBeDefined()
-        expect(jobAfterFailed.status).toBe('FAILED')
-        expect(jobAfterFailed.data).toEqual({ test: 'test' })
-        expect(jobAfterFailed.name).toBeNull()
-        expect(jobAfterFailed.resultData).toBeNull()
+        expect(failingJobAfterFailed).toBeDefined()
+        expect(failingJobAfterFailed.status).toBe('FAILED')
+        expect(failingJobAfterFailed.id).toBe(failingJob.id)
+        expect(failingJobAfterFailed.data).toEqual({ test: 'failingTest' })
+        expect(failingJobAfterFailed.name).toBeNull()
+        expect(failingJobAfterFailed.resultData).toBeNull()
       })
     })
 
@@ -190,169 +223,228 @@ describe('SQLiteQueueModule (e2e)', () => {
       it('should add a a new named job with data to the queue and process it', async () => {
         let queue = app.get(getQueueToken(NAMED_JOBS_TEST_QUEUE)) as SQLiteQueue
         let testService = app.get(TestService)
-        jest.spyOn(testService, 'testRun').mockImplementation(async () => {
+        let namedTestConsumer = app.get(TestConsumerWithNamedJobs)
+
+        jest.spyOn(testService, 'testRun').mockImplementationOnce(async (job) => {
           await new Promise((resolve) => setTimeout(resolve, 2000))
           return { test: 'test', status: 'done', someData: 'someData' }
         })
 
-        let job = await queue.createJob(NAMED_TEST_JOB_1, { test: 'test' })
-        let newJob = await queue.getJob(job.id)
+        jest.spyOn(testService, 'testRun2').mockImplementationOnce(async (job) => {
+          await new Promise((resolve) => setTimeout(resolve, 2000))
+          return { test: 'test2', status: 'done2', someData: 'someData2' }
+        })
 
-        expect(job).toBeDefined()
-        expect(newJob).toBeDefined()
-        expect(newJob.status).toBe('NEW')
-        expect(newJob.data).toEqual({ test: 'test' })
-        expect(newJob.name).toBe(NAMED_TEST_JOB_1)
+        jest.spyOn(testService, 'testOnActive')
+        jest.spyOn(testService, 'testOnDone')
+        jest.spyOn(testService, 'testOnFailed')
+        jest.spyOn(namedTestConsumer, 'handler1')
+        jest.spyOn(namedTestConsumer, 'handler2')
+        jest.spyOn(namedTestConsumer, 'onActive')
+        jest.spyOn(namedTestConsumer, 'onDone')
+        jest.spyOn(namedTestConsumer, 'onFailed')
+        jest.spyOn(namedTestConsumer, 'testRun1')
+        jest.spyOn(namedTestConsumer, 'testRun2')
 
+        // Add both the named jobs to the queue one after another
+        let succeedingNamedJob1 = await queue.createJob(NAMED_TEST_JOB_1, { test: 'test1' })
+        let succeedingNamedJob2 = await queue.createJob(NAMED_TEST_JOB_2, { test: 'test2' })
+
+        let newSucceedingNamedJob1 = await queue.getJob(succeedingNamedJob1.id)
+
+        expect(succeedingNamedJob1).toBeDefined()
+        expect(newSucceedingNamedJob1).toBeDefined()
+        expect(newSucceedingNamedJob1.id).toBe(succeedingNamedJob1.id)
+        expect(newSucceedingNamedJob1.status).toBe('NEW')
+        expect(newSucceedingNamedJob1.data).toEqual({ test: 'test1' })
+        expect(newSucceedingNamedJob1.name).toBe(NAMED_TEST_JOB_1)
+
+        let newSucceedingNamedJob2 = await queue.getJob(succeedingNamedJob2.id)
+
+        expect(succeedingNamedJob2).toBeDefined()
+        expect(newSucceedingNamedJob2).toBeDefined()
+        expect(newSucceedingNamedJob2.id).toBe(succeedingNamedJob2.id)
+        expect(newSucceedingNamedJob2.status).toBe('NEW')
+        expect(newSucceedingNamedJob2.data).toEqual({ test: 'test2' })
+        expect(newSucceedingNamedJob2.name).toBe(NAMED_TEST_JOB_2)
+
+        // Start processing the first named job
         await new Promise((resolve) => setTimeout(resolve, 1000))
-        let jobAfterProcessing = await queue.getJob(job.id)
 
-        expect(jobAfterProcessing).toBeDefined()
-        expect(jobAfterProcessing.status).toBe('PROCESSING')
-        expect(jobAfterProcessing.data).toEqual({ test: 'test' })
-        expect(jobAfterProcessing.name).toBe(NAMED_TEST_JOB_1)
-        expect(jobAfterProcessing.resultData).toBeNull()
+        let succeedingNamedJob1AfterProcessing = await queue.getJob(succeedingNamedJob1.id)
 
+        expect(succeedingNamedJob1AfterProcessing).toBeDefined()
+        expect(succeedingNamedJob1AfterProcessing.status).toBe('PROCESSING')
+        expect(succeedingNamedJob1AfterProcessing.id).toBe(succeedingNamedJob1.id)
+        expect(succeedingNamedJob1AfterProcessing.data).toEqual({ test: 'test1' })
+        expect(succeedingNamedJob1AfterProcessing.name).toBe(NAMED_TEST_JOB_1)
+        expect(succeedingNamedJob1AfterProcessing.resultData).toBeNull()
+
+        expect(namedTestConsumer.testRun1).toHaveBeenCalledTimes(1)
+        expect(namedTestConsumer.testRun1).toHaveBeenCalledWith(succeedingNamedJob1AfterProcessing)
+        expect(namedTestConsumer.handler1).toHaveBeenCalledTimes(1)
+        expect(namedTestConsumer.handler1).toHaveBeenCalledWith(succeedingNamedJob1AfterProcessing)
+        expect(testService.testRun).toHaveBeenCalledTimes(1)
+        expect(namedTestConsumer.onActive).toHaveBeenCalledTimes(1)
+        expect(namedTestConsumer.onActive).toHaveBeenCalledWith(succeedingNamedJob1AfterProcessing)
+
+        expect(namedTestConsumer.testRun2).toHaveBeenCalledTimes(0)
+        expect(namedTestConsumer.handler2).toHaveBeenCalledTimes(0)
+
+        // Finish processing the first named job and start processing the second named job
         await new Promise((resolve) => setTimeout(resolve, 2000))
-        let jobAfterDone = await queue.getJob(job.id)
+        let succeedingNamedJob1AfterDone = await queue.getJob(newSucceedingNamedJob1.id)
 
-        expect(jobAfterDone).toBeDefined()
-        expect(jobAfterDone.status).toBe('DONE')
-        expect(jobAfterDone.data).toEqual({ test: 'test' })
-        expect(jobAfterDone.name).toBe(NAMED_TEST_JOB_1)
-        expect(jobAfterDone.resultData).toEqual({
+        expect(succeedingNamedJob1AfterDone).toBeDefined()
+        expect(succeedingNamedJob1AfterDone.status).toBe('DONE')
+        expect(succeedingNamedJob1AfterDone.data).toEqual({ test: 'test1' })
+        expect(succeedingNamedJob1AfterDone.name).toBe(NAMED_TEST_JOB_1)
+        expect(succeedingNamedJob1AfterDone.resultData).toEqual({
           test: 'test',
           status: 'done',
           someData: 'someData',
         })
-      })
 
-      it('should fail to process a named job', async () => {
-        let queue = app.get(getQueueToken(NAMED_JOBS_TEST_QUEUE)) as SQLiteQueue
-        let testService = app.get(TestService)
-        jest.spyOn(testService, 'testRun2').mockImplementation(async () => {
-          await new Promise((resolve) => setTimeout(resolve, 2000))
-          throw new Error('Test error')
-        })
+        let succeedingNamedJob2AfterProcessing = await queue.getJob(succeedingNamedJob2.id)
 
-        let job = await queue.createJob(NAMED_TEST_JOB_2, { test: 'test' })
-        let newJob = await queue.getJob(job.id)
+        expect(succeedingNamedJob2AfterProcessing).toBeDefined()
+        expect(succeedingNamedJob2AfterProcessing.status).toBe('PROCESSING')
+        expect(succeedingNamedJob2AfterProcessing.id).toBe(succeedingNamedJob2.id)
+        expect(succeedingNamedJob2AfterProcessing.data).toEqual({ test: 'test2' })
+        expect(succeedingNamedJob2AfterProcessing.name).toBe(NAMED_TEST_JOB_2)
+        expect(succeedingNamedJob2AfterProcessing.resultData).toBeNull()
 
-        expect(job).toBeDefined()
-        expect(newJob).toBeDefined()
-        expect(newJob.status).toBe('NEW')
-        expect(newJob.data).toEqual({ test: 'test' })
-        expect(newJob.name).toBe(NAMED_TEST_JOB_2)
+        expect(namedTestConsumer.testRun1).toHaveBeenCalledTimes(1)
+        expect(namedTestConsumer.handler1).toHaveBeenCalledTimes(1)
+        expect(namedTestConsumer.onDone).toHaveBeenCalledTimes(1)
+        expect(namedTestConsumer.onDone).toHaveBeenCalledWith(succeedingNamedJob1AfterDone)
 
-        await new Promise((resolve) => setTimeout(resolve, 1000))
-        let jobAfterProcessing = await queue.getJob(job.id)
+        expect(namedTestConsumer.testRun2).toHaveBeenCalledTimes(1)
+        expect(namedTestConsumer.testRun2).toHaveBeenCalledWith(succeedingNamedJob2AfterProcessing)
+        expect(namedTestConsumer.handler2).toHaveBeenCalledTimes(1)
+        expect(namedTestConsumer.handler2).toHaveBeenCalledWith(succeedingNamedJob2AfterProcessing)
+        expect(namedTestConsumer.onActive).toHaveBeenCalledTimes(2)
+        expect(namedTestConsumer.onActive).toHaveBeenCalledWith(succeedingNamedJob2AfterProcessing)
 
-        expect(jobAfterProcessing).toBeDefined()
-        expect(jobAfterProcessing.status).toBe('PROCESSING')
-        expect(jobAfterProcessing.data).toEqual({ test: 'test' })
-        expect(jobAfterProcessing.name).toBe(NAMED_TEST_JOB_2)
-        expect(jobAfterProcessing.resultData).toBeNull()
-
+        // Finish processing the second named job
         await new Promise((resolve) => setTimeout(resolve, 2000))
-        let jobAfterFailed = await queue.getJob(job.id)
+        let succeedingNamedJob2AfterDone = await queue.getJob(succeedingNamedJob2.id)
 
-        expect(jobAfterFailed).toBeDefined()
-        expect(jobAfterFailed.status).toBe('FAILED')
-        expect(jobAfterFailed.data).toEqual({ test: 'test' })
-        expect(jobAfterFailed.name).toBe(NAMED_TEST_JOB_2)
-        expect(jobAfterFailed.resultData).toBeNull()
-      })
-
-      it('should process a named job and fail another named job correctly', async () => {
-        let queue = app.get(getQueueToken(NAMED_JOBS_TEST_QUEUE)) as SQLiteQueue
-        let testService = app.get(TestService)
-        jest.spyOn(testService, 'testRun').mockImplementation(async () => {
-          await new Promise((resolve) => setTimeout(resolve, 2000))
-          return { test: 'test', status: 'done', someData: 'someData' }
+        expect(succeedingNamedJob2AfterDone).toBeDefined()
+        expect(succeedingNamedJob2AfterDone.status).toBe('DONE')
+        expect(succeedingNamedJob2AfterDone.data).toEqual({ test: 'test2' })
+        expect(succeedingNamedJob2AfterDone.name).toBe(NAMED_TEST_JOB_2)
+        expect(succeedingNamedJob2AfterDone.resultData).toEqual({
+          test: 'test2',
+          status: 'done2',
+          someData: 'someData2',
         })
 
-        jest.spyOn(testService, 'testRun2').mockImplementation(async () => {
-          await new Promise((resolve) => setTimeout(resolve, 2000))
-          throw new Error('Test error')
-        })
+        expect(namedTestConsumer.testRun1).toHaveBeenCalledTimes(1)
+        expect(namedTestConsumer.handler1).toHaveBeenCalledTimes(1)
+        expect(namedTestConsumer.testRun2).toHaveBeenCalledTimes(1)
+        expect(namedTestConsumer.handler2).toHaveBeenCalledTimes(1)
+        expect(namedTestConsumer.onDone).toHaveBeenCalledTimes(2)
+        expect(namedTestConsumer.onDone).toHaveBeenCalledWith(succeedingNamedJob2AfterDone)
+        expect(namedTestConsumer.onActive).toHaveBeenCalledTimes(2)
 
-        let job1 = await queue.createJob(NAMED_TEST_JOB_1, { test: 'test1' })
-        let job2 = await queue.createJob(NAMED_TEST_JOB_2, { test: 'test2' })
-
-        let newJob1 = await queue.getJob(job1.id)
-        let newJob2 = await queue.getJob(job2.id)
-
-        expect(job1).toBeDefined()
-        expect(job2).toBeDefined()
-        expect(newJob1).toBeDefined()
-        expect(newJob2).toBeDefined()
-        expect(newJob1.status).toBe('NEW')
-        expect(newJob2.status).toBe('NEW')
-        expect(newJob1.data).toEqual({ test: 'test1' })
-        expect(newJob2.data).toEqual({ test: 'test2' })
-        expect(newJob1.name).toBe(NAMED_TEST_JOB_1)
-        expect(newJob2.name).toBe(NAMED_TEST_JOB_2)
-
-        await new Promise((resolve) => setTimeout(resolve, 2500))
-        let jobAfterProcessing1 = await queue.getJob(job1.id)
-        let jobAfterProcessing2 = await queue.getJob(job2.id)
-
-        expect(jobAfterProcessing1).toBeDefined()
-        expect(jobAfterProcessing2).toBeDefined()
-        expect(jobAfterProcessing1.status).toBe('PROCESSING')
-        expect(jobAfterProcessing2.status).toBe('PROCESSING')
-        expect(jobAfterProcessing1.data).toEqual({ test: 'test1' })
-        expect(jobAfterProcessing2.data).toEqual({ test: 'test2' })
-        expect(jobAfterProcessing1.name).toBe(NAMED_TEST_JOB_1)
-        expect(jobAfterProcessing2.name).toBe(NAMED_TEST_JOB_2)
-        expect(jobAfterProcessing1.resultData).toBeNull()
-        expect(jobAfterProcessing2.resultData).toBeNull()
-
-        await new Promise((resolve) => setTimeout(resolve, 2000))
-        let jobAfterDone1 = await queue.getJob(job1.id)
-        let jobAfterFailed2 = await queue.getJob(job2.id)
-
-        expect(jobAfterDone1).toBeDefined()
-        expect(jobAfterFailed2).toBeDefined()
-        expect(jobAfterDone1.status).toBe('DONE')
-        expect(jobAfterFailed2.status).toBe('FAILED')
-        expect(jobAfterDone1.data).toEqual({ test: 'test1' })
-        expect(jobAfterFailed2.data).toEqual({ test: 'test2' })
-        expect(jobAfterDone1.name).toBe(NAMED_TEST_JOB_1)
-        expect(jobAfterFailed2.name).toBe(NAMED_TEST_JOB_2)
-        expect(jobAfterDone1.resultData).toEqual({
-          test: 'test',
-          status: 'done',
-          someData: 'someData',
-        })
-        expect(jobAfterFailed2.resultData).toBeNull()
-      })
-
-      it('should fail to process a named job with a non existing method', async () => {
-        let queue = app.get(getQueueToken(NAMED_JOBS_TEST_QUEUE)) as SQLiteQueue
-        let testService = app.get(TestService)
-        jest.spyOn(testService, 'testRun').mockImplementation(async () => {
+        // Then validate failing jobs
+        jest.spyOn(testService, 'testRun').mockImplementationOnce(async () => {
           await new Promise((resolve) => setTimeout(resolve, 2000))
           throw new Error('Test error')
         })
 
-        let job = await queue.createJob('jobNameWithNoProccessor', { test: 'test' })
-        let newJob = await queue.getJob(job.id)
+        jest.spyOn(testService, 'testRun2').mockImplementationOnce(async () => {
+          await new Promise((resolve) => setTimeout(resolve, 2000))
+          throw new Error('Test error 2')
+        })
 
-        expect(job).toBeDefined()
-        expect(newJob).toBeDefined()
-        expect(newJob.status).toBe('NEW')
-        expect(newJob.data).toEqual({ test: 'test' })
-        expect(newJob.name).toBe('jobNameWithNoProccessor')
+        // Add both the named jobs to the queue one after another
+        let failingNamedJob1 = await queue.createJob(NAMED_TEST_JOB_1, { test: 'test1' })
+        let failingNamedJob2 = await queue.createJob(NAMED_TEST_JOB_2, { test: 'test2' })
 
+        let newFailingNamedJob1 = await queue.getJob(failingNamedJob1.id)
+        let newFailingNamedJob2 = await queue.getJob(failingNamedJob2.id)
+
+        expect(failingNamedJob1).toBeDefined()
+        expect(newFailingNamedJob1).toBeDefined()
+        expect(newFailingNamedJob1.status).toBe('NEW')
+        expect(newFailingNamedJob1.data).toEqual({ test: 'test1' })
+        expect(newFailingNamedJob1.id).toBe(failingNamedJob1.id)
+        expect(newFailingNamedJob1.name).toBe(NAMED_TEST_JOB_1)
+
+        expect(failingNamedJob2).toBeDefined()
+        expect(newFailingNamedJob2).toBeDefined()
+        expect(newFailingNamedJob2.status).toBe('NEW')
+        expect(newFailingNamedJob2.data).toEqual({ test: 'test2' })
+        expect(newFailingNamedJob2.id).toBe(failingNamedJob2.id)
+        expect(newFailingNamedJob2.name).toBe(NAMED_TEST_JOB_2)
+
+        // Start processing the first named job
         await new Promise((resolve) => setTimeout(resolve, 1000))
-        let jobAfterFailed = await queue.getJob(job.id)
 
-        expect(jobAfterFailed).toBeDefined()
-        expect(jobAfterFailed.status).toBe('FAILED')
-        expect(jobAfterFailed.data).toEqual({ test: 'test' })
-        expect(jobAfterFailed.name).toBe('jobNameWithNoProccessor')
-        expect(jobAfterFailed.resultData).toBeNull()
+        let failingNamedJob1AfterProcessing = await queue.getJob(failingNamedJob1.id)
+
+        expect(failingNamedJob1AfterProcessing).toBeDefined()
+        expect(failingNamedJob1AfterProcessing.status).toBe('PROCESSING')
+        expect(failingNamedJob1AfterProcessing.id).toBe(failingNamedJob1.id)
+        expect(failingNamedJob1AfterProcessing.data).toEqual({ test: 'test1' })
+        expect(failingNamedJob1AfterProcessing.name).toBe(NAMED_TEST_JOB_1)
+        expect(failingNamedJob1AfterProcessing.resultData).toBeNull()
+
+        expect(namedTestConsumer.testRun1).toHaveBeenCalledTimes(2)
+        expect(namedTestConsumer.testRun1).toHaveBeenCalledWith(failingNamedJob1AfterProcessing)
+        expect(namedTestConsumer.handler1).toHaveBeenCalledTimes(2)
+        expect(namedTestConsumer.handler1).toHaveBeenCalledWith(failingNamedJob1AfterProcessing)
+        expect(namedTestConsumer.onActive).toHaveBeenCalledTimes(3)
+        expect(namedTestConsumer.onActive).toHaveBeenCalledWith(failingNamedJob1AfterProcessing)
+
+        // Finish processing the first named job and start processing the second named job
+        await new Promise((resolve) => setTimeout(resolve, 2000))
+
+        let failingNamedJob1AfterFailed = await queue.getJob(failingNamedJob1.id)
+
+        expect(failingNamedJob1AfterFailed).toBeDefined()
+        expect(failingNamedJob1AfterFailed.status).toBe('FAILED')
+        expect(failingNamedJob1AfterFailed.id).toBe(failingNamedJob1.id)
+        expect(failingNamedJob1AfterFailed.data).toEqual({ test: 'test1' })
+        expect(failingNamedJob1AfterFailed.name).toBe(NAMED_TEST_JOB_1)
+        expect(failingNamedJob1AfterFailed.resultData).toBeNull()
+
+        expect(namedTestConsumer.onFailed).toHaveBeenCalledTimes(1)
+        expect(namedTestConsumer.onFailed).toHaveBeenCalledWith(failingNamedJob1AfterFailed)
+
+        let failingNamedJob2AfterProcessing = await queue.getJob(failingNamedJob2.id)
+
+        expect(failingNamedJob2AfterProcessing).toBeDefined()
+        expect(failingNamedJob2AfterProcessing.status).toBe('PROCESSING')
+        expect(failingNamedJob2AfterProcessing.id).toBe(failingNamedJob2.id)
+        expect(failingNamedJob2AfterProcessing.data).toEqual({ test: 'test2' })
+        expect(failingNamedJob2AfterProcessing.name).toBe(NAMED_TEST_JOB_2)
+        expect(failingNamedJob2AfterProcessing.resultData).toBeNull()
+
+        expect(namedTestConsumer.testRun2).toHaveBeenCalledTimes(2)
+        expect(namedTestConsumer.testRun2).toHaveBeenCalledWith(failingNamedJob2AfterProcessing)
+        expect(namedTestConsumer.handler2).toHaveBeenCalledTimes(2)
+        expect(namedTestConsumer.handler2).toHaveBeenCalledWith(failingNamedJob2AfterProcessing)
+        expect(namedTestConsumer.onActive).toHaveBeenCalledTimes(4)
+        expect(namedTestConsumer.onActive).toHaveBeenCalledWith(failingNamedJob2AfterProcessing)
+
+        // Finish processing the second named job
+        await new Promise((resolve) => setTimeout(resolve, 2000))
+        let failingNamedJob2AfterFailed = await queue.getJob(failingNamedJob2.id)
+
+        expect(failingNamedJob2AfterFailed).toBeDefined()
+        expect(failingNamedJob2AfterFailed.status).toBe('FAILED')
+        expect(failingNamedJob2AfterFailed.id).toBe(failingNamedJob2.id)
+        expect(failingNamedJob2AfterFailed.data).toEqual({ test: 'test2' })
+        expect(failingNamedJob2AfterFailed.name).toBe(NAMED_TEST_JOB_2)
+        expect(failingNamedJob2AfterFailed.resultData).toBeNull()
+
+        expect(namedTestConsumer.onFailed).toHaveBeenCalledTimes(2)
+        expect(namedTestConsumer.onFailed).toHaveBeenCalledWith(failingNamedJob2AfterFailed)
+
+        expect(namedTestConsumer.onDone).toHaveBeenCalledTimes(2)
       })
     })
   })

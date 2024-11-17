@@ -1,30 +1,31 @@
-import { Logger } from '@nestjs/common'
-import { log } from 'console'
 import { TestService } from './test.service'
 import { JobStatus, OnWorkerEvent, Process, Processor, type Job } from '../../../src/'
-import { TEST_QUEUE } from '../sqlite-queue.module.spec'
 
 @Processor()
 export class TestConsumer {
-  private readonly logger = new Logger(TestConsumer.name)
-
   constructor(private testService: TestService) {}
 
   @Process()
   async handler(job: Job) {
-    return this.testRun()
+    return this.testRun(job)
   }
 
-  testRun() {
+  testRun(job?: Job) {
     return this.testService.testRun()
   }
 
   @OnWorkerEvent(JobStatus.PROCESSING)
-  onActive(job: Job) {}
+  onActive(job: Job) {
+    this.testService.testOnActive(job)
+  }
 
   @OnWorkerEvent(JobStatus.DONE)
-  onDone(job: Job) {}
+  onDone(job: Job) {
+    this.testService.testOnDone(job)
+  }
 
   @OnWorkerEvent(JobStatus.FAILED)
-  onFailed(job: Job) {}
+  onFailed(job: Job) {
+    this.testService.testOnFailed(job)
+  }
 }
