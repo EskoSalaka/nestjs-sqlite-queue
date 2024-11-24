@@ -1,4 +1,4 @@
-import { Injectable, Logger } from '@nestjs/common'
+import { Injectable } from '@nestjs/common'
 import { JobStatus, type Job } from './models/job.model'
 import { getWorkerEventName } from './sqlite-queue.util'
 import EventEmitter from 'node:events'
@@ -8,8 +8,6 @@ import { SQLITE_QUEUE_DEFAULT_QUEUE_NAME } from './sqlite-queue.constants'
 
 @Injectable()
 export class SQLiteQueueWorker {
-  private readonly logger: Logger
-
   private activeJobs: number = 0
   private maxParallelJobs: number = 0
 
@@ -19,9 +17,6 @@ export class SQLiteQueueWorker {
     private readonly eventEmitter: EventEmitter
   ) {
     this.maxParallelJobs = config.maxParallelJobs
-    this.logger = new Logger(
-      'QueueProcessor:' + (this.config.name ?? SQLITE_QUEUE_DEFAULT_QUEUE_NAME)
-    )
 
     setInterval(() => {
       this.consumeEvents()
@@ -33,58 +28,31 @@ export class SQLiteQueueWorker {
       return
     }
 
-    const transaction = await this.queue.createTransaction()
+    let event = await this.findFirstAndMarkAsProcessing()
 
-    let event = await this.queue.getFirstNewJob(transaction)
-
-    if (!event || (this.maxParallelJobs && this.activeJobs >= this.maxParallelJobs)) {
-      await transaction.commit()
-
+    if (!event) {
       return
     }
 
-    event = await this.queue.markAsProcessing(event.id, transaction)
-    await transaction.commit()
-    this.emitWorkerEvent(event, JobStatus.PROCESSING)
-
-    if (this.maxParallelJobs) {
-      this.activeJobs++
-    }
-
     try {
-      const result = await this.handleJob(event)
-      event = await this.queue.markAsProcessed(event.id, result ?? null)
+      let result = await this.handleJob(event)
+      let completedEvent = await this.completeJob(event, result)
 
-      this.emitWorkerEvent(event, JobStatus.DONE)
+      return completedEvent
     } catch (error: unknown) {
-      let message = error instanceof Error ? error.message : 'Unknown error'
-      this.logger.error(`Job: ${event.id} Processing a job failed --- ${message}`)
-
-      event = await this.queue.markAsFailed(event.id)
-
-      this.emitWorkerEvent(event, JobStatus.FAILED)
+      await this.handleFailure(event, error)
     } finally {
       if (this.maxParallelJobs) {
         this.activeJobs--
       }
     }
-
-    this.logger.log(`Processing event done -- id ${event.id} ---- ${event.name}`)
   }
 
   private async handleJob(event: Job) {
-    if (event.name) {
-      let method = this[event.name]
+    let method = this.getHandlerMethod(event)
+    let result = await method(event)
 
-      if (method) {
-        return method(event)
-      } else {
-        throw new Error(`Processor method not found for a named job: ${event.name}. When using named jobs, you must use the 
-          @Processor('jobName') decorator to create processors for each unique name added to a queue`)
-      }
-    }
-
-    return this['defaultHandler'](event)
+    return result
   }
 
   private emitWorkerEvent(event: Job, status: JobStatus) {
@@ -94,7 +62,54 @@ export class SQLiteQueueWorker {
     )
   }
 
-  private defaultHandler(event: Job) {
-    this.logger.log(`Default handler for job ${event.id} --- ${event.name}`)
+  private async findFirstAndMarkAsProcessing(): Promise<Job | null> {
+    const transaction = await this.queue.createTransaction()
+    let event = await this.queue.getFirstNewJob(transaction)
+
+    if (!event || (this.maxParallelJobs && this.activeJobs >= this.maxParallelJobs)) {
+      await transaction.commit()
+
+      return null
+    }
+
+    let processingEvent = await this.queue.markAsProcessing(event.id, transaction)
+    await transaction.commit()
+    this.emitWorkerEvent(processingEvent, JobStatus.PROCESSING)
+
+    if (this.maxParallelJobs) {
+      this.activeJobs++
+    }
+
+    return processingEvent
   }
+
+  //#TODO: Implement other error handling, like retries and save error message/stacktrace
+  private async handleFailure(event: Job, error: unknown) {
+    let failedEvent = await this.queue.markAsFailed(event.id)
+    this.emitWorkerEvent(failedEvent, JobStatus.FAILED)
+
+    return failedEvent
+  }
+
+  private async completeJob(event: Job, result: any) {
+    let processedEvent = await this.queue.markAsProcessed(event.id, result)
+    this.emitWorkerEvent(processedEvent, JobStatus.DONE)
+
+    return processedEvent
+  }
+
+  private getHandlerMethod(event: Job) {
+    if (event.name) {
+      if (!this[event.name]) {
+        throw new Error(`Processor method not found for a named job: ${event.name}. When using named jobs, you must use the 
+          @Processor('jobName') decorator to create processors for each unique name added to a queue`)
+      }
+
+      return this[event.name]
+    } else {
+      return this.defaultHandler
+    }
+  }
+
+  private defaultHandler(event: Job) {}
 }
