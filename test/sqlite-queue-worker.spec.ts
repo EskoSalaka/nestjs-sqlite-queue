@@ -1,10 +1,8 @@
-import { Test, TestingModule } from '@nestjs/testing'
 import { EventEmitter } from 'node:events'
-import { SQLiteQueueWorker } from '../src/sqlite-queue-worker'
+import { JobTimeoutError, SQLiteQueueWorker } from '../src/sqlite-queue-worker'
 import { SQLiteQueue } from '../src/sqlite-queue.service'
 import { JobStatus, Job } from '../src/models/job.model'
 import { type SQLiteQueueConfig } from 'src'
-import { SQLITE_QUEUE_DEFAULT_QUEUE_NAME } from '../src/sqlite-queue.constants'
 
 jest.useFakeTimers()
 
@@ -15,6 +13,7 @@ describe('SQLiteQueueWorker', () => {
   let config: SQLiteQueueConfig
 
   beforeEach(async () => {
+    jest.clearAllMocks()
     config = {}
     queue = {
       isPaused: jest.fn().mockReturnValue(false),
@@ -28,13 +27,8 @@ describe('SQLiteQueueWorker', () => {
     } as any
 
     eventEmitter = new EventEmitter()
-
     worker = new SQLiteQueueWorker(config, queue, eventEmitter)
   })
-
-  beforeEach = () => {
-    jest.clearAllMocks()
-  }
 
   it('should be defined', () => {
     expect(worker).toBeDefined()
@@ -174,6 +168,23 @@ describe('SQLiteQueueWorker', () => {
         `Processor method not found for a named job: ${job.name}. When using named jobs, you must use the 
           @Processor('jobName') decorator to create processors for each unique name added to a queue`
       )
+    })
+
+    it('should fail with a timeout error if the job times out', async () => {
+      const job: Job = { id: 1 } as any
+      worker['jobTimeout'] = 100
+
+      const defaultHandlerSpy = jest
+        .spyOn(worker as any, 'defaultHandler')
+        .mockImplementation(
+          () => new Promise((resolve, _) => setTimeout(() => resolve('test'), 200))
+        )
+
+      expect.assertions(1)
+      ;(worker as any).handleJob(job).catch((error) => {
+        expect(error).toBeInstanceOf(JobTimeoutError)
+      })
+      jest.advanceTimersByTime(1000)
     })
   })
 

@@ -9,14 +9,16 @@ import { SQLITE_QUEUE_DEFAULT_QUEUE_NAME } from './sqlite-queue.constants'
 @Injectable()
 export class SQLiteQueueWorker {
   private activeJobs: number = 0
-  private maxParallelJobs: number = 0
+  private maxParallelJobs: number
+  private jobTimeout: number
 
   constructor(
     private readonly config: SQLiteQueueConfig,
     private readonly queue: SQLiteQueue,
     private readonly eventEmitter: EventEmitter
   ) {
-    this.maxParallelJobs = config.maxParallelJobs
+    this.maxParallelJobs = config.maxParallelJobs || 0
+    this.jobTimeout = config.jobTimeout || 30000
 
     setInterval(() => {
       this.consumeEvents()
@@ -50,9 +52,23 @@ export class SQLiteQueueWorker {
 
   private async handleJob(event: Job) {
     let method = this.getHandlerMethod(event)
-    let result = await method(event)
+    let timeout: NodeJS.Timeout
 
-    return result
+    const jobPromise = new Promise(async (resolve, reject) => {
+      try {
+        let result = await method(event)
+
+        resolve(result)
+      } catch (error: unknown) {
+        reject(error)
+      } finally {
+        clearTimeout(timeout)
+      }
+    })
+
+    let jobResult = await Promise.race([jobPromise, this.runTimer(timeout)])
+
+    return jobResult
   }
 
   private emitWorkerEvent(event: Job, status: JobStatus) {
@@ -85,6 +101,13 @@ export class SQLiteQueueWorker {
 
   //#TODO: Implement other error handling, like retries and save error message/stacktrace
   private async handleFailure(event: Job, error: unknown) {
+    if (error instanceof JobTimeoutError) {
+      let stalledEvent = await this.queue.markAsStalled(event.id)
+      this.emitWorkerEvent(stalledEvent, JobStatus.STALLED)
+
+      return stalledEvent
+    }
+
     let failedEvent = await this.queue.markAsFailed(event.id)
     this.emitWorkerEvent(failedEvent, JobStatus.FAILED)
 
@@ -111,5 +134,20 @@ export class SQLiteQueueWorker {
     }
   }
 
+  private runTimer(timeout: NodeJS.Timeout) {
+    return new Promise((_, reject) => {
+      timeout = setTimeout(() => {
+        reject(new JobTimeoutError(`Job timed out after ${this.jobTimeout}ms`))
+      }, this.jobTimeout)
+    })
+  }
+
   private defaultHandler(event: Job) {}
+}
+
+export class JobTimeoutError extends Error {
+  constructor(message: string) {
+    super(message)
+    this.name = 'JobTimeoutError'
+  }
 }

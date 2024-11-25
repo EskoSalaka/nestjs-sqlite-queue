@@ -5,6 +5,7 @@ export interface SQLiteQueueConfig {
   name?: string
   connection?: string
   maxParallelJobs?: number
+  jobTimeout?: number
   synchronize?: SyncOptions
 }
 
