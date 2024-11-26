@@ -1,8 +1,9 @@
 import { EventEmitter } from 'node:events'
-import { JobTimeoutError, SQLiteQueueWorker } from '../src/sqlite-queue-worker'
+import { SQLiteQueueWorker } from '../src/sqlite-queue-worker'
 import { SQLiteQueue } from '../src/sqlite-queue.service'
 import { JobStatus, Job } from '../src/models/job.model'
 import { type SQLiteQueueConfig } from 'src'
+import { JobTimeoutError } from '../src/sqlite-queue.errors'
 
 jest.useFakeTimers()
 

@@ -9,6 +9,7 @@ import { JobTimeoutError } from './sqlite-queue.errors'
 
 @Injectable()
 export class SQLiteQueueWorker {
+  private pollRate: number = 1000
   private activeJobs: number = 0
   private maxParallelJobs: number
   private jobTimeout: number
@@ -20,10 +21,11 @@ export class SQLiteQueueWorker {
   ) {
     this.maxParallelJobs = config.maxParallelJobs || 0
     this.jobTimeout = config.jobTimeout || 30000
+    this.pollRate = config.pollRate || 1000
 
     setInterval(() => {
       this.consumeEvents()
-    }, 1000)
+    }, this.pollRate)
   }
 
   private async consumeEvents() {
@@ -51,23 +53,13 @@ export class SQLiteQueueWorker {
     }
   }
 
+  /**
+   * @throws {JobTimeoutError} if the job execution times out
+   * @throws {Error} if the job execution fails
+   */
   private async handleJob(event: Job) {
-    let method = this.getHandlerMethod(event)
-    let timeout: NodeJS.Timeout
-
-    const jobPromise = new Promise(async (resolve, reject) => {
-      try {
-        let result = await method(event)
-
-        resolve(result)
-      } catch (error: unknown) {
-        reject(error)
-      } finally {
-        clearTimeout(timeout)
-      }
-    })
-
-    let jobResult = await Promise.race([jobPromise, this.runTimer(timeout)])
+    let jobHandler = this.getHandlerMethod(event)
+    let jobResult = await this.raceExecutionTimeout(jobHandler, event, this.jobTimeout)
 
     return jobResult
   }
@@ -135,14 +127,26 @@ export class SQLiteQueueWorker {
     }
   }
 
-  private runTimer(timeout: NodeJS.Timeout) {
+  private async raceExecutionTimeout(method: (event: Job) => any, event: Job, timeout: number) {
+    let timeoutHandler: NodeJS.Timeout
+
+    let jobResult = await Promise.race([
+      method(event),
+      this.runTimer(timeoutHandler, timeout),
+    ]).finally(() => {
+      clearTimeout(timeoutHandler)
+    })
+
+    return jobResult
+  }
+
+  private runTimer(timeoutHandler: NodeJS.Timeout, timeout: number) {
     return new Promise((_, reject) => {
-      timeout = setTimeout(() => {
+      timeoutHandler = setTimeout(() => {
         reject(new JobTimeoutError(`Job timed out after ${this.jobTimeout}ms`))
-      }, this.jobTimeout)
+      }, timeout)
     })
   }
 
   private defaultHandler(event: Job) {}
 }
-export { JobTimeoutError }

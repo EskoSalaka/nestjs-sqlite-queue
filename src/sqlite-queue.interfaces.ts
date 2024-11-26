@@ -4,6 +4,7 @@ import type { SyncOptions } from 'sequelize'
 export interface SQLiteQueueConfig {
   name?: string
   connection?: string
+  pollRate?: number
   maxParallelJobs?: number
   jobTimeout?: number
   synchronize?: SyncOptions
