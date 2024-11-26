@@ -5,6 +5,7 @@ import EventEmitter from 'node:events'
 import type { SQLiteQueueConfig } from './sqlite-queue.interfaces'
 import type { SQLiteQueue } from './sqlite-queue.service'
 import { SQLITE_QUEUE_DEFAULT_QUEUE_NAME } from './sqlite-queue.constants'
+import { JobTimeoutError } from './sqlite-queue.errors'
 
 @Injectable()
 export class SQLiteQueueWorker {
@@ -144,10 +145,4 @@ export class SQLiteQueueWorker {
 
   private defaultHandler(event: Job) {}
 }
-
-export class JobTimeoutError extends Error {
-  constructor(message: string) {
-    super(message)
-    this.name = 'JobTimeoutError'
-  }
-}
+export { JobTimeoutError }

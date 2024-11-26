@@ -4,3 +4,10 @@ export class JobNotFoundError extends Error {
     this.name = 'JobNotFoundError'
   }
 }
+
+export class JobTimeoutError extends Error {
+  constructor(message: string) {
+    super(message)
+    this.name = 'JobTimeoutError'
+  }
+}

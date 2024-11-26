@@ -1,12 +1,8 @@
 import { Injectable } from '@nestjs/common'
-import { JobModel, JobStatus, type Job } from './models/job.model'
+import { JobModel, JobStatus, type Job, type JSONObject, type JSONValue } from './models/job.model'
 import { Sequelize, Transaction, WhereOptions } from 'sequelize'
-import { JobNotFoundError } from './sqlite-queue'
-
-export interface CreateJobOptions {
-  jobName?: string | null | undefined
-  jobData: JobModel['data'] | null
-}
+import { JobNotFoundError } from './sqlite-queue.errors'
+import type { CreateJobOptions } from './sqlite-queue.interfaces'
 
 @Injectable()
 export class SQLiteQueue {
@@ -14,7 +10,7 @@ export class SQLiteQueue {
 
   constructor(private readonly job: typeof JobModel) {}
 
-  async getJob(id: Job['id'], tx?: Transaction): Promise<Job | null> {
+  async getJob(id: number, tx?: Transaction): Promise<Job | null> {
     const job = await this.job.findByPk(id, {
       plain: true,
       transaction: tx,
@@ -27,30 +23,40 @@ export class SQLiteQueue {
     return job.dataValues
   }
 
-  async createJob(jobData: JobModel['data'] | null, tx?: Transaction): Promise<Job>
-  async createJob(jobName: string, jobData: JobModel['data'] | null, tx?: Transaction): Promise<Job>
+  async createJob(data: JSONValue, options?: CreateJobOptions, tx?: Transaction): Promise<Job>
+  async createJob(
+    name: string,
+    data: JSONObject,
+    options?: CreateJobOptions,
+    tx?: Transaction
+  ): Promise<Job>
 
   async createJob(
-    jobNameOrData: Job['name'] | JobModel['data'] | null,
-    jobDataOrTx?: JobModel['data'] | Transaction | null,
+    nameOrData: JSONObject | string,
+    dataOrOptions?: JSONObject | CreateJobOptions,
+    optionsOrTx?: CreateJobOptions | Transaction,
     tx?: Transaction
-  ): Promise<Job | null> {
-    let jobName: Job['name'] | undefined
-    let jobData: JobModel['data'] | null = null
+  ): Promise<Job> {
+    let name: string
+    let data: JSONObject
+    let options: CreateJobOptions
 
-    if (typeof jobNameOrData === 'string') {
-      jobName = jobNameOrData
-      jobData = jobDataOrTx as JobModel['data'] | null
+    if (typeof nameOrData === 'string') {
+      name = nameOrData
+      data = dataOrOptions as JSONObject
+      options = (optionsOrTx as CreateJobOptions) ?? {}
     } else {
-      jobData = jobNameOrData
-      tx = jobDataOrTx as Transaction
+      name = null
+      data = nameOrData as JSONObject
+      options = (dataOrOptions as CreateJobOptions) ?? {}
     }
 
     const job = await this.job.create(
       {
-        name: jobName ?? null,
-        data: jobData,
+        name,
+        data,
         status: JobStatus.NEW,
+        ...options,
       },
       { transaction: tx }
     )
@@ -58,12 +64,9 @@ export class SQLiteQueue {
     return job.dataValues
   }
 
-  async getFirstNewJob(name: Job['name'], tx?: Transaction): Promise<Job | null>
+  async getFirstNewJob(name: string, tx?: Transaction): Promise<Job | null>
   async getFirstNewJob(tx?: Transaction): Promise<Job | null>
-  async getFirstNewJob(
-    nameOrTx?: Job['name'] | Transaction,
-    tx?: Transaction
-  ): Promise<Job | null> {
+  async getFirstNewJob(nameOrTx?: string | Transaction, tx?: Transaction): Promise<Job | null> {
     let where: WhereOptions = {
       status: JobStatus.NEW,
     }
@@ -84,7 +87,7 @@ export class SQLiteQueue {
     return job?.dataValues ?? null
   }
 
-  async markAsNew(id: Job['id'], tx?: Transaction): Promise<Job | null> {
+  async markAsNew(id: number, tx?: Transaction): Promise<Job | null> {
     const job = await this.job.findByPk(id, { transaction: tx })
 
     if (!job) {
@@ -99,7 +102,7 @@ export class SQLiteQueue {
     return job.dataValues
   }
 
-  async markAsProcessing(id: Job['id'], tx?: Transaction): Promise<Job | null> {
+  async markAsProcessing(id: number, tx?: Transaction): Promise<Job | null> {
     const job = await this.job.findByPk(id, { transaction: tx })
 
     if (!job) {
@@ -120,8 +123,8 @@ export class SQLiteQueue {
   }
 
   async markAsProcessed(
-    id: Job['id'],
-    resultData?: Job['resultData'],
+    id: number,
+    resultData?: JSONObject,
     tx?: Transaction
   ): Promise<Job | null> {
     const job = await this.job.findByPk(id, { transaction: tx })
@@ -144,7 +147,7 @@ export class SQLiteQueue {
     return job.dataValues
   }
 
-  async markAsFailed(id: Job['id'], tx?: Transaction): Promise<Job | null> {
+  async markAsFailed(id: number, tx?: Transaction): Promise<Job | null> {
     const job = await this.job.findByPk(id, { transaction: tx })
 
     if (!job) {
@@ -164,7 +167,7 @@ export class SQLiteQueue {
     return job.dataValues
   }
 
-  async markAsStalled(id: Job['id'], tx?: Transaction): Promise<Job | null> {
+  async markAsStalled(id: number, tx?: Transaction): Promise<Job | null> {
     const job = await this.job.findByPk(id, { transaction: tx })
 
     if (!job) {
@@ -184,7 +187,7 @@ export class SQLiteQueue {
     return job.dataValues
   }
 
-  async removeJob(id: Job['id'], tx?: Transaction): Promise<Job> {
+  async removeJob(id: number, tx?: Transaction): Promise<Job> {
     let job = await this.job.findByPk(id, { transaction: tx })
 
     if (!job) {

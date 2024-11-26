@@ -13,12 +13,9 @@ export interface Job {
   name: string
   data: JSONObject
   resultData: JSONObject
-  status:
-    | JobStatus.DONE
-    | JobStatus.FAILED
-    | JobStatus.NEW
-    | JobStatus.STALLED
-    | JobStatus.PROCESSING
+  status: JobStatus
+  retries: number
+  maxRetries: number
   createdAt: Date
   processingAt: Date
   doneAt: Date
@@ -27,13 +24,11 @@ export interface Job {
   updatedAt: Date
 }
 
+interface JSONArray extends Array<JSONValue> {}
 export type JSONValue = string | number | boolean | null | JSONObject | JSONArray
-
 export interface JSONObject {
   [x: string]: JSONValue
 }
-
-interface JSONArray extends Array<JSONValue> {}
 
 @Table({
   tableName: 'default_queue',
@@ -63,6 +58,12 @@ export class JobModel extends Model<Job> {
   })
   @Index({})
   status: JobStatus
+
+  @Column({ allowNull: true, defaultValue: 0 })
+  retries: number
+
+  @Column({ allowNull: true, defaultValue: 0 })
+  maxRetries: number
 
   @Column({})
   @Index({})
@@ -117,6 +118,16 @@ export function createJobModelDefinition(tableName: string, sequelize: Sequelize
           JobStatus.STALLED,
           JobStatus.FAILED,
         ],
+      },
+      retries: {
+        type: DataType.INTEGER,
+        allowNull: true,
+        defaultValue: 0,
+      },
+      maxRetries: {
+        type: DataType.INTEGER,
+        allowNull: true,
+        defaultValue: 0,
       },
       createdAt: {
         type: DataType.DATE,

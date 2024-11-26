@@ -3,7 +3,7 @@ import { Sequelize } from 'sequelize-typescript'
 import { SQLiteQueue } from '../src/sqlite-queue.service'
 import { JobModel, JobStatus } from '../src/models/job.model'
 import { createJobModel, createSequelizeConnection } from '../src/sqlite-queue.util'
-import { JobNotFoundError } from '../src/sqlite-queue'
+import { JobNotFoundError } from '../src/sqlite-queue.errors'
 import * as crypto from 'crypto'
 import { log } from 'console'
 
@@ -61,6 +61,9 @@ describe('SQLiteQueue', () => {
       expect(job.id).toBeDefined()
       expect(job.name).toBe(null)
       expect(job.status).toBe(JobStatus.NEW)
+      expect(job.data).toEqual({ data: { test: 'test' } })
+      expect(job.retries).toBe(0)
+      expect(job.maxRetries).toBe(0)
 
       let jobs = await jobModel.findAll()
       expect(jobs).toHaveLength(1)
@@ -77,6 +80,43 @@ describe('SQLiteQueue', () => {
       expect(job.name).toBe('test')
       expect(job.status).toBe(JobStatus.NEW)
       expect(job.data).toEqual({ data: { test: 'test' } })
+      expect(job.retries).toBe(0)
+      expect(job.maxRetries).toBe(0)
+
+      let jobs = await jobModel.findAll()
+      expect(jobs).toHaveLength(1)
+
+      let createdJob = jobs[0]
+      expect(createdJob.dataValues).toEqual(job)
+    })
+
+    it('should add a job with options to the queue', async () => {
+      let job = await queue.createJob({ data: { test: 'test' } }, { maxRetries: 3 })
+
+      expect(job).toBeDefined()
+      expect(job.id).toBeDefined()
+      expect(job.name).toBe(null)
+      expect(job.status).toBe(JobStatus.NEW)
+      expect(job.maxRetries).toBe(3)
+      expect(job.retries).toBe(0)
+
+      let jobs = await jobModel.findAll()
+      expect(jobs).toHaveLength(1)
+
+      let createdJob = jobs[0]
+      expect(createdJob.dataValues).toEqual(job)
+    })
+
+    it('should add a named job with options to the queue', async () => {
+      let job = await queue.createJob('test', { data: { test: 'test' } }, { maxRetries: 3 })
+
+      expect(job).toBeDefined()
+      expect(job.id).toBeDefined()
+      expect(job.name).toBe('test')
+      expect(job.data).toEqual({ data: { test: 'test' } })
+      expect(job.status).toBe(JobStatus.NEW)
+      expect(job.maxRetries).toBe(3)
+      expect(job.retries).toBe(0)
 
       let jobs = await jobModel.findAll()
       expect(jobs).toHaveLength(1)

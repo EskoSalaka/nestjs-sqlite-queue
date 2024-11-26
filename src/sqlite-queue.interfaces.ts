@@ -17,3 +17,7 @@ export interface SQLiteQueueModuleAsyncConfig extends Pick<ModuleMetadata, 'impo
   inject?: any[]
   useFactory?: (...args: any[]) => Promise<SQLiteQueueModuleConfig> | SQLiteQueueModuleConfig
 }
+
+export interface CreateJobOptions {
+  maxRetries?: number
+}
