@@ -11,7 +11,7 @@ export class TestConsumer {
   }
 
   testRun(job?: Job) {
-    return this.testService.testRun()
+    return this.testService.testRun(job)
   }
 
   @OnWorkerEvent(JobStatus.PROCESSING)

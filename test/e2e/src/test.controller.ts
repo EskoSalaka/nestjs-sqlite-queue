@@ -1,18 +1,18 @@
 import { Controller, Get } from '@nestjs/common'
-import { TestService } from './test.service'
 import { SQLiteQueue, InjectQueue } from '../../../src/'
 
 @Controller()
-export class QueueController {
+export class TestController {
   constructor(
-    @InjectQueue('test2') private q: SQLiteQueue,
-    @InjectQueue('test3') private q2: SQLiteQueue
+    @InjectQueue() private defaultQueue: SQLiteQueue,
+    @InjectQueue('NAMED_JOBS_TEST_QUEUE') private namedQueue: SQLiteQueue
   ) {}
 
   @Get()
   getHello(): string {
-    this.q2.createJob({ jobData: { SomeData: 'test' } })
-    this.q.createJob('test2', { jobData: { SomeData: 'test2' } })
+    this.defaultQueue.createJob({ jobData: { SomeData: 'test2' } })
+    this.namedQueue.createJob({ jobData: { SomeData: 'test' } })
+
     return 'Hello World!'
   }
 }

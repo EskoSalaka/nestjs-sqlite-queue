@@ -3,7 +3,6 @@ import * as path from 'node:path'
 import { Test, TestingModule } from '@nestjs/testing'
 import { INestApplication } from '@nestjs/common'
 import { SQLiteQueueModule } from '../../src/sqlite-queue.module'
-import { log } from 'console'
 import { getConnectionToken, getQueueToken } from '../../src/sqlite-queue.util'
 import { TestConsumer } from './src/test.consumer'
 import { TestConsumerWithNamedJobs } from './src/named-test.consumer'
@@ -14,6 +13,7 @@ import {
 import { TestService } from './src/test.service'
 import { type SQLiteQueue } from 'src'
 import type { Sequelize } from 'sequelize'
+import { sleep } from './src/util'
 
 export const TEST_CONNECTION_1 = 'TEST_CONNECTION_1'
 export const TEST_CONNECTION_2 = 'TEST_CONNECTION_2'
@@ -37,10 +37,11 @@ describe('SQLiteQueueModule (e2e)', () => {
           { useFactory: () => ({ storage: './test/e2e/temp/' + TEST_CONNECTION_2 }) },
           'TEST_CONNECTION_2'
         ),
-        SQLiteQueueModule.registerQueue({}),
+        SQLiteQueueModule.registerQueue({ pollRate: 100 }),
         SQLiteQueueModule.registerQueue({
           name: NAMED_JOBS_TEST_QUEUE,
           connection: TEST_CONNECTION_2,
+          pollRate: 100,
         }),
       ],
       providers: [TestConsumer, TestConsumerWithNamedJobs, TestService],
@@ -121,7 +122,7 @@ describe('SQLiteQueueModule (e2e)', () => {
         let testConsumer = app.get(TestConsumer)
 
         jest.spyOn(testService, 'testRun').mockImplementationOnce(async (job) => {
-          await new Promise((resolve) => setTimeout(resolve, 2000))
+          await sleep(200)
           return { test: 'test', status: 'done', someData: 'someData' }
         })
         jest.spyOn(testService, 'testOnActive')
@@ -143,7 +144,7 @@ describe('SQLiteQueueModule (e2e)', () => {
         expect(newSucceedingJob.data).toEqual({ test: 'test' })
         expect(newSucceedingJob.name).toBeNull()
 
-        await new Promise((resolve) => setTimeout(resolve, 1000))
+        await sleep(150)
         let succeedingJobAfterProcessing = await queue.getJob(succeedingJob.id)
 
         expect(succeedingJobAfterProcessing).toBeDefined()
@@ -161,7 +162,7 @@ describe('SQLiteQueueModule (e2e)', () => {
         expect(testConsumer.onActive).toHaveBeenCalledTimes(1)
         expect(testConsumer.onActive).toHaveBeenCalledWith(succeedingJobAfterProcessing)
 
-        await new Promise((resolve) => setTimeout(resolve, 2000))
+        await sleep(200)
         let succeedingJobAfterDone = await queue.getJob(newSucceedingJob.id)
 
         expect(succeedingJobAfterDone).toBeDefined()
@@ -175,7 +176,7 @@ describe('SQLiteQueueModule (e2e)', () => {
         })
 
         jest.spyOn(testService, 'testRun').mockImplementationOnce(async () => {
-          await new Promise((resolve) => setTimeout(resolve, 2000))
+          await sleep(200)
           throw new Error('Test error')
         })
 
@@ -189,7 +190,7 @@ describe('SQLiteQueueModule (e2e)', () => {
         expect(newFailingJob.id).toBe(failingJob.id)
         expect(newFailingJob.name).toBeNull()
 
-        await new Promise((resolve) => setTimeout(resolve, 1000))
+        await sleep(150)
         let failingJobAfterProcessing = await queue.getJob(failingJob.id)
 
         expect(failingJobAfterProcessing).toBeDefined()
@@ -207,7 +208,7 @@ describe('SQLiteQueueModule (e2e)', () => {
         expect(testConsumer.onActive).toHaveBeenCalledTimes(2)
         expect(testConsumer.onActive).toHaveBeenCalledWith(failingJobAfterProcessing)
 
-        await new Promise((resolve) => setTimeout(resolve, 2000))
+        await sleep(200)
         let failingJobAfterFailed = await queue.getJob(newFailingJob.id)
 
         expect(failingJobAfterFailed).toBeDefined()
@@ -226,12 +227,12 @@ describe('SQLiteQueueModule (e2e)', () => {
         let namedTestConsumer = app.get(TestConsumerWithNamedJobs)
 
         jest.spyOn(testService, 'testRun').mockImplementationOnce(async (job) => {
-          await new Promise((resolve) => setTimeout(resolve, 2000))
+          await sleep(200)
           return { test: 'test', status: 'done', someData: 'someData' }
         })
 
         jest.spyOn(testService, 'testRun2').mockImplementationOnce(async (job) => {
-          await new Promise((resolve) => setTimeout(resolve, 2000))
+          await sleep(400)
           return { test: 'test2', status: 'done2', someData: 'someData2' }
         })
 
@@ -269,7 +270,7 @@ describe('SQLiteQueueModule (e2e)', () => {
         expect(newSucceedingNamedJob2.name).toBe(NAMED_TEST_JOB_2)
 
         // Start processing the first named job
-        await new Promise((resolve) => setTimeout(resolve, 1000))
+        await sleep(100)
 
         let succeedingNamedJob1AfterProcessing = await queue.getJob(succeedingNamedJob1.id)
 
@@ -292,7 +293,7 @@ describe('SQLiteQueueModule (e2e)', () => {
         expect(namedTestConsumer.handler2).toHaveBeenCalledTimes(0)
 
         // Finish processing the first named job and start processing the second named job
-        await new Promise((resolve) => setTimeout(resolve, 2000))
+        await sleep(250)
         let succeedingNamedJob1AfterDone = await queue.getJob(newSucceedingNamedJob1.id)
 
         expect(succeedingNamedJob1AfterDone).toBeDefined()
@@ -327,7 +328,7 @@ describe('SQLiteQueueModule (e2e)', () => {
         expect(namedTestConsumer.onActive).toHaveBeenCalledWith(succeedingNamedJob2AfterProcessing)
 
         // Finish processing the second named job
-        await new Promise((resolve) => setTimeout(resolve, 2000))
+        await sleep(300)
         let succeedingNamedJob2AfterDone = await queue.getJob(succeedingNamedJob2.id)
 
         expect(succeedingNamedJob2AfterDone).toBeDefined()
@@ -350,12 +351,12 @@ describe('SQLiteQueueModule (e2e)', () => {
 
         // Then validate failing jobs
         jest.spyOn(testService, 'testRun').mockImplementationOnce(async () => {
-          await new Promise((resolve) => setTimeout(resolve, 2000))
+          await sleep(200)
           throw new Error('Test error')
         })
 
         jest.spyOn(testService, 'testRun2').mockImplementationOnce(async () => {
-          await new Promise((resolve) => setTimeout(resolve, 2000))
+          await sleep(300)
           throw new Error('Test error 2')
         })
 
@@ -381,7 +382,7 @@ describe('SQLiteQueueModule (e2e)', () => {
         expect(newFailingNamedJob2.name).toBe(NAMED_TEST_JOB_2)
 
         // Start processing the first named job
-        await new Promise((resolve) => setTimeout(resolve, 1000))
+        await sleep(100)
 
         let failingNamedJob1AfterProcessing = await queue.getJob(failingNamedJob1.id)
 
@@ -400,7 +401,7 @@ describe('SQLiteQueueModule (e2e)', () => {
         expect(namedTestConsumer.onActive).toHaveBeenCalledWith(failingNamedJob1AfterProcessing)
 
         // Finish processing the first named job and start processing the second named job
-        await new Promise((resolve) => setTimeout(resolve, 2000))
+        await sleep(200)
 
         let failingNamedJob1AfterFailed = await queue.getJob(failingNamedJob1.id)
 
@@ -431,7 +432,7 @@ describe('SQLiteQueueModule (e2e)', () => {
         expect(namedTestConsumer.onActive).toHaveBeenCalledWith(failingNamedJob2AfterProcessing)
 
         // Finish processing the second named job
-        await new Promise((resolve) => setTimeout(resolve, 2000))
+        await sleep(200)
         let failingNamedJob2AfterFailed = await queue.getJob(failingNamedJob2.id)
 
         expect(failingNamedJob2AfterFailed).toBeDefined()

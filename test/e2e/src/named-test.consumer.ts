@@ -28,7 +28,7 @@ export class TestConsumerWithNamedJobs {
 
   @OnWorkerEvent(JobStatus.PROCESSING)
   onActive(job: Job) {
-    this.testService.testOnActive()
+    this.testService.testOnActive(job)
   }
 
   @OnWorkerEvent(JobStatus.DONE)
@@ -38,6 +38,6 @@ export class TestConsumerWithNamedJobs {
 
   @OnWorkerEvent(JobStatus.FAILED)
   onFailed(job: Job) {
-    this.testService.testOnFailed()
+    this.testService.testOnFailed(job)
   }
 }
