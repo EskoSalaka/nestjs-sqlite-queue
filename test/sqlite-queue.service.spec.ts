@@ -60,7 +60,7 @@ describe('SQLiteQueue', () => {
       expect(job).toBeDefined()
       expect(job.id).toBeDefined()
       expect(job.name).toBe(null)
-      expect(job.status).toBe(JobStatus.NEW)
+      expect(job.status).toBe(JobStatus.WAITING)
       expect(job.data).toEqual({ data: { test: 'test' } })
       expect(job.retries).toBe(0)
       expect(job.maxRetries).toBe(0)
@@ -78,7 +78,7 @@ describe('SQLiteQueue', () => {
       expect(job).toBeDefined()
       expect(job.id).toBeDefined()
       expect(job.name).toBe('test')
-      expect(job.status).toBe(JobStatus.NEW)
+      expect(job.status).toBe(JobStatus.WAITING)
       expect(job.data).toEqual({ data: { test: 'test' } })
       expect(job.retries).toBe(0)
       expect(job.maxRetries).toBe(0)
@@ -96,7 +96,7 @@ describe('SQLiteQueue', () => {
       expect(job).toBeDefined()
       expect(job.id).toBeDefined()
       expect(job.name).toBe(null)
-      expect(job.status).toBe(JobStatus.NEW)
+      expect(job.status).toBe(JobStatus.WAITING)
       expect(job.maxRetries).toBe(3)
       expect(job.retries).toBe(0)
 
@@ -114,7 +114,7 @@ describe('SQLiteQueue', () => {
       expect(job.id).toBeDefined()
       expect(job.name).toBe('test')
       expect(job.data).toEqual({ data: { test: 'test' } })
-      expect(job.status).toBe(JobStatus.NEW)
+      expect(job.status).toBe(JobStatus.WAITING)
       expect(job.maxRetries).toBe(3)
       expect(job.retries).toBe(0)
 
@@ -205,6 +205,41 @@ describe('SQLiteQueue', () => {
       let fetchedJob = await queue.getFirstNewJob(notToBeFoundUUID)
 
       expect(fetchedJob).toBeNull()
+    })
+  })
+
+  describe('markAsWaiting', () => {
+    it('should mark a job as waiting and updated its timestamp fields', async () => {
+      let job = await queue.createJob({})
+
+      let waitingJob = await queue.markAsWaiting(job.id)
+
+      expect(waitingJob.id).toBe(job.id)
+      expect(waitingJob.status).toBe(JobStatus.WAITING)
+
+      let jobInDb = await jobModel.findOne({ where: { id: job.id } })
+      expect(jobInDb.dataValues).toEqual(waitingJob)
+    })
+
+    it('should update its timestamp fields', async () => {
+      let job = await queue.createJob({})
+      await jobModel.update({ status: JobStatus.PROCESSING }, { where: { id: job.id } })
+      let jobInDb = await jobModel.findOne({ where: { id: job.id } })
+      expect(jobInDb.status).toBe(JobStatus.PROCESSING)
+
+      let waitingJob = await queue.markAsWaiting(job.id)
+
+      expect(waitingJob.id).toBe(job.id)
+
+      expect(waitingJob.updatedAt.getMilliseconds()).toBeGreaterThan(
+        job.updatedAt.getMilliseconds()
+      )
+    })
+
+    it('should throw an error if job is not found', async () => {
+      let id = 1
+      await expect(queue.markAsWaiting(id)).rejects.toThrow(`Job with id ${id} not found`)
+      await expect(queue.markAsWaiting(id)).rejects.toThrow(JobNotFoundError)
     })
   })
 

@@ -12,6 +12,7 @@ import {
 } from '../../src/sqlite-queue.constants'
 import { TestService } from './src/test.service'
 import { type SQLiteQueue } from 'src'
+import { JobStatus } from '../../src/models/job.model'
 import type { Sequelize } from 'sequelize'
 import { sleep } from './src/util'
 
@@ -123,7 +124,7 @@ describe('SQLiteQueueModule (e2e)', () => {
 
         jest.spyOn(testService, 'testRun').mockImplementationOnce(async (job) => {
           await sleep(200)
-          return { test: 'test', status: 'done', someData: 'someData' }
+          return { test: 'test', status: JobStatus.DONE, someData: 'someData' }
         })
         jest.spyOn(testService, 'testOnActive')
         jest.spyOn(testService, 'testOnDone')
@@ -140,7 +141,7 @@ describe('SQLiteQueueModule (e2e)', () => {
         expect(succeedingJob).toBeDefined()
         expect(newSucceedingJob).toBeDefined()
         expect(newSucceedingJob.id).toBe(succeedingJob.id)
-        expect(newSucceedingJob.status).toBe('NEW')
+        expect(newSucceedingJob.status).toBe('WAITING')
         expect(newSucceedingJob.data).toEqual({ test: 'test' })
         expect(newSucceedingJob.name).toBeNull()
 
@@ -148,7 +149,7 @@ describe('SQLiteQueueModule (e2e)', () => {
         let succeedingJobAfterProcessing = await queue.getJob(succeedingJob.id)
 
         expect(succeedingJobAfterProcessing).toBeDefined()
-        expect(succeedingJobAfterProcessing.status).toBe('PROCESSING')
+        expect(succeedingJobAfterProcessing.status).toBe(JobStatus.PROCESSING)
         expect(succeedingJobAfterProcessing.id).toBe(succeedingJob.id)
         expect(succeedingJobAfterProcessing.data).toEqual({ test: 'test' })
         expect(succeedingJobAfterProcessing.name).toBeNull()
@@ -166,12 +167,12 @@ describe('SQLiteQueueModule (e2e)', () => {
         let succeedingJobAfterDone = await queue.getJob(newSucceedingJob.id)
 
         expect(succeedingJobAfterDone).toBeDefined()
-        expect(succeedingJobAfterDone.status).toBe('DONE')
+        expect(succeedingJobAfterDone.status).toBe(JobStatus.DONE)
         expect(succeedingJobAfterDone.data).toEqual({ test: 'test' })
         expect(succeedingJobAfterDone.name).toBeNull()
         expect(succeedingJobAfterDone.resultData).toEqual({
           test: 'test',
-          status: 'done',
+          status: JobStatus.DONE,
           someData: 'someData',
         })
 
@@ -185,7 +186,7 @@ describe('SQLiteQueueModule (e2e)', () => {
 
         expect(failingJob).toBeDefined()
         expect(newFailingJob).toBeDefined()
-        expect(newFailingJob.status).toBe('NEW')
+        expect(newFailingJob.status).toBe(JobStatus.WAITING)
         expect(newFailingJob.data).toEqual({ test: 'failingTest' })
         expect(newFailingJob.id).toBe(failingJob.id)
         expect(newFailingJob.name).toBeNull()
@@ -194,7 +195,7 @@ describe('SQLiteQueueModule (e2e)', () => {
         let failingJobAfterProcessing = await queue.getJob(failingJob.id)
 
         expect(failingJobAfterProcessing).toBeDefined()
-        expect(failingJobAfterProcessing.status).toBe('PROCESSING')
+        expect(failingJobAfterProcessing.status).toBe(JobStatus.PROCESSING)
         expect(failingJobAfterProcessing.id).toBe(failingJob.id)
         expect(failingJobAfterProcessing.data).toEqual({ test: 'failingTest' })
         expect(failingJobAfterProcessing.name).toBeNull()
@@ -212,7 +213,7 @@ describe('SQLiteQueueModule (e2e)', () => {
         let failingJobAfterFailed = await queue.getJob(newFailingJob.id)
 
         expect(failingJobAfterFailed).toBeDefined()
-        expect(failingJobAfterFailed.status).toBe('FAILED')
+        expect(failingJobAfterFailed.status).toBe(JobStatus.FAILED)
         expect(failingJobAfterFailed.id).toBe(failingJob.id)
         expect(failingJobAfterFailed.data).toEqual({ test: 'failingTest' })
         expect(failingJobAfterFailed.name).toBeNull()
@@ -228,7 +229,7 @@ describe('SQLiteQueueModule (e2e)', () => {
 
         jest.spyOn(testService, 'testRun').mockImplementationOnce(async (job) => {
           await sleep(200)
-          return { test: 'test', status: 'done', someData: 'someData' }
+          return { test: 'test', status: JobStatus.DONE, someData: 'someData' }
         })
 
         jest.spyOn(testService, 'testRun2').mockImplementationOnce(async (job) => {
@@ -256,7 +257,7 @@ describe('SQLiteQueueModule (e2e)', () => {
         expect(succeedingNamedJob1).toBeDefined()
         expect(newSucceedingNamedJob1).toBeDefined()
         expect(newSucceedingNamedJob1.id).toBe(succeedingNamedJob1.id)
-        expect(newSucceedingNamedJob1.status).toBe('NEW')
+        expect(newSucceedingNamedJob1.status).toBe(JobStatus.WAITING)
         expect(newSucceedingNamedJob1.data).toEqual({ test: 'test1' })
         expect(newSucceedingNamedJob1.name).toBe(NAMED_TEST_JOB_1)
 
@@ -265,7 +266,7 @@ describe('SQLiteQueueModule (e2e)', () => {
         expect(succeedingNamedJob2).toBeDefined()
         expect(newSucceedingNamedJob2).toBeDefined()
         expect(newSucceedingNamedJob2.id).toBe(succeedingNamedJob2.id)
-        expect(newSucceedingNamedJob2.status).toBe('NEW')
+        expect(newSucceedingNamedJob2.status).toBe(JobStatus.WAITING)
         expect(newSucceedingNamedJob2.data).toEqual({ test: 'test2' })
         expect(newSucceedingNamedJob2.name).toBe(NAMED_TEST_JOB_2)
 
@@ -275,7 +276,7 @@ describe('SQLiteQueueModule (e2e)', () => {
         let succeedingNamedJob1AfterProcessing = await queue.getJob(succeedingNamedJob1.id)
 
         expect(succeedingNamedJob1AfterProcessing).toBeDefined()
-        expect(succeedingNamedJob1AfterProcessing.status).toBe('PROCESSING')
+        expect(succeedingNamedJob1AfterProcessing.status).toBe(JobStatus.PROCESSING)
         expect(succeedingNamedJob1AfterProcessing.id).toBe(succeedingNamedJob1.id)
         expect(succeedingNamedJob1AfterProcessing.data).toEqual({ test: 'test1' })
         expect(succeedingNamedJob1AfterProcessing.name).toBe(NAMED_TEST_JOB_1)
@@ -297,19 +298,19 @@ describe('SQLiteQueueModule (e2e)', () => {
         let succeedingNamedJob1AfterDone = await queue.getJob(newSucceedingNamedJob1.id)
 
         expect(succeedingNamedJob1AfterDone).toBeDefined()
-        expect(succeedingNamedJob1AfterDone.status).toBe('DONE')
+        expect(succeedingNamedJob1AfterDone.status).toBe(JobStatus.DONE)
         expect(succeedingNamedJob1AfterDone.data).toEqual({ test: 'test1' })
         expect(succeedingNamedJob1AfterDone.name).toBe(NAMED_TEST_JOB_1)
         expect(succeedingNamedJob1AfterDone.resultData).toEqual({
           test: 'test',
-          status: 'done',
+          status: JobStatus.DONE,
           someData: 'someData',
         })
 
         let succeedingNamedJob2AfterProcessing = await queue.getJob(succeedingNamedJob2.id)
 
         expect(succeedingNamedJob2AfterProcessing).toBeDefined()
-        expect(succeedingNamedJob2AfterProcessing.status).toBe('PROCESSING')
+        expect(succeedingNamedJob2AfterProcessing.status).toBe(JobStatus.PROCESSING)
         expect(succeedingNamedJob2AfterProcessing.id).toBe(succeedingNamedJob2.id)
         expect(succeedingNamedJob2AfterProcessing.data).toEqual({ test: 'test2' })
         expect(succeedingNamedJob2AfterProcessing.name).toBe(NAMED_TEST_JOB_2)
@@ -332,7 +333,7 @@ describe('SQLiteQueueModule (e2e)', () => {
         let succeedingNamedJob2AfterDone = await queue.getJob(succeedingNamedJob2.id)
 
         expect(succeedingNamedJob2AfterDone).toBeDefined()
-        expect(succeedingNamedJob2AfterDone.status).toBe('DONE')
+        expect(succeedingNamedJob2AfterDone.status).toBe(JobStatus.DONE)
         expect(succeedingNamedJob2AfterDone.data).toEqual({ test: 'test2' })
         expect(succeedingNamedJob2AfterDone.name).toBe(NAMED_TEST_JOB_2)
         expect(succeedingNamedJob2AfterDone.resultData).toEqual({
@@ -369,14 +370,14 @@ describe('SQLiteQueueModule (e2e)', () => {
 
         expect(failingNamedJob1).toBeDefined()
         expect(newFailingNamedJob1).toBeDefined()
-        expect(newFailingNamedJob1.status).toBe('NEW')
+        expect(newFailingNamedJob1.status).toBe(JobStatus.WAITING)
         expect(newFailingNamedJob1.data).toEqual({ test: 'test1' })
         expect(newFailingNamedJob1.id).toBe(failingNamedJob1.id)
         expect(newFailingNamedJob1.name).toBe(NAMED_TEST_JOB_1)
 
         expect(failingNamedJob2).toBeDefined()
         expect(newFailingNamedJob2).toBeDefined()
-        expect(newFailingNamedJob2.status).toBe('NEW')
+        expect(newFailingNamedJob2.status).toBe(JobStatus.WAITING)
         expect(newFailingNamedJob2.data).toEqual({ test: 'test2' })
         expect(newFailingNamedJob2.id).toBe(failingNamedJob2.id)
         expect(newFailingNamedJob2.name).toBe(NAMED_TEST_JOB_2)
@@ -387,7 +388,7 @@ describe('SQLiteQueueModule (e2e)', () => {
         let failingNamedJob1AfterProcessing = await queue.getJob(failingNamedJob1.id)
 
         expect(failingNamedJob1AfterProcessing).toBeDefined()
-        expect(failingNamedJob1AfterProcessing.status).toBe('PROCESSING')
+        expect(failingNamedJob1AfterProcessing.status).toBe(JobStatus.PROCESSING)
         expect(failingNamedJob1AfterProcessing.id).toBe(failingNamedJob1.id)
         expect(failingNamedJob1AfterProcessing.data).toEqual({ test: 'test1' })
         expect(failingNamedJob1AfterProcessing.name).toBe(NAMED_TEST_JOB_1)
@@ -406,7 +407,7 @@ describe('SQLiteQueueModule (e2e)', () => {
         let failingNamedJob1AfterFailed = await queue.getJob(failingNamedJob1.id)
 
         expect(failingNamedJob1AfterFailed).toBeDefined()
-        expect(failingNamedJob1AfterFailed.status).toBe('FAILED')
+        expect(failingNamedJob1AfterFailed.status).toBe(JobStatus.FAILED)
         expect(failingNamedJob1AfterFailed.id).toBe(failingNamedJob1.id)
         expect(failingNamedJob1AfterFailed.data).toEqual({ test: 'test1' })
         expect(failingNamedJob1AfterFailed.name).toBe(NAMED_TEST_JOB_1)
@@ -418,7 +419,7 @@ describe('SQLiteQueueModule (e2e)', () => {
         let failingNamedJob2AfterProcessing = await queue.getJob(failingNamedJob2.id)
 
         expect(failingNamedJob2AfterProcessing).toBeDefined()
-        expect(failingNamedJob2AfterProcessing.status).toBe('PROCESSING')
+        expect(failingNamedJob2AfterProcessing.status).toBe(JobStatus.PROCESSING)
         expect(failingNamedJob2AfterProcessing.id).toBe(failingNamedJob2.id)
         expect(failingNamedJob2AfterProcessing.data).toEqual({ test: 'test2' })
         expect(failingNamedJob2AfterProcessing.name).toBe(NAMED_TEST_JOB_2)
@@ -436,7 +437,7 @@ describe('SQLiteQueueModule (e2e)', () => {
         let failingNamedJob2AfterFailed = await queue.getJob(failingNamedJob2.id)
 
         expect(failingNamedJob2AfterFailed).toBeDefined()
-        expect(failingNamedJob2AfterFailed.status).toBe('FAILED')
+        expect(failingNamedJob2AfterFailed.status).toBe(JobStatus.FAILED)
         expect(failingNamedJob2AfterFailed.id).toBe(failingNamedJob2.id)
         expect(failingNamedJob2AfterFailed.data).toEqual({ test: 'test2' })
         expect(failingNamedJob2AfterFailed.name).toBe(NAMED_TEST_JOB_2)

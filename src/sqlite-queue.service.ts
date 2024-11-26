@@ -55,7 +55,7 @@ export class SQLiteQueue {
       {
         name,
         data,
-        status: JobStatus.NEW,
+        status: JobStatus.WAITING,
         ...options,
       },
       { transaction: tx }
@@ -68,7 +68,7 @@ export class SQLiteQueue {
   async getFirstNewJob(tx?: Transaction): Promise<Job | null>
   async getFirstNewJob(nameOrTx?: string | Transaction, tx?: Transaction): Promise<Job | null> {
     let where: WhereOptions = {
-      status: JobStatus.NEW,
+      status: JobStatus.WAITING,
     }
 
     if (typeof nameOrTx === 'string') {
@@ -87,17 +87,21 @@ export class SQLiteQueue {
     return job?.dataValues ?? null
   }
 
-  async markAsNew(id: number, tx?: Transaction): Promise<Job | null> {
+  async markAsWaiting(id: number, tx?: Transaction): Promise<Job | null> {
     const job = await this.job.findByPk(id, { transaction: tx })
 
     if (!job) {
       throw new JobNotFoundError(`Job with id ${id} not found`)
     }
 
-    job.status = JobStatus.NEW
-    job.updatedAt = new Date()
-
-    await job.save({ transaction: tx })
+    let updateDate = new Date()
+    await job.update(
+      {
+        status: JobStatus.WAITING,
+        updatedAt: updateDate,
+      },
+      { transaction: tx }
+    )
 
     return job.dataValues
   }

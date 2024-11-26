@@ -1,7 +1,7 @@
 import { Column, DataType, Index, Model, Table, type Sequelize } from 'sequelize-typescript'
 
 export enum JobStatus {
-  NEW = 'NEW',
+  WAITING = 'WAITING',
   PROCESSING = 'PROCESSING',
   DONE = 'DONE',
   STALLED = 'STALLED',
@@ -54,7 +54,7 @@ export class JobModel extends Model<Job> {
 
   @Column({
     type: DataType.ENUM,
-    values: [JobStatus.NEW, JobStatus.PROCESSING, JobStatus.DONE, JobStatus.FAILED],
+    values: [JobStatus.WAITING, JobStatus.PROCESSING, JobStatus.DONE, JobStatus.FAILED],
   })
   @Index({})
   status: JobStatus
@@ -112,7 +112,7 @@ export function createJobModelDefinition(tableName: string, sequelize: Sequelize
       status: {
         type: DataType.ENUM,
         values: [
-          JobStatus.NEW,
+          JobStatus.WAITING,
           JobStatus.PROCESSING,
           JobStatus.DONE,
           JobStatus.STALLED,
