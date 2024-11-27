@@ -3,6 +3,11 @@ import { JobModel, JobStatus, type Job, type JSONObject, type JSONValue } from '
 import { Sequelize, Transaction, WhereOptions } from 'sequelize'
 import { JobNotFoundError } from './sqlite-queue.errors'
 import type { CreateJobOptions } from './sqlite-queue.interfaces'
+import {
+  SQLITE_QUEUE_DEFAULT_JOB_FAIL_ON_STALLED,
+  SQLITE_QUEUE_DEFAULT_JOB_RETRIES,
+  SQLITE_QUEUE_DEFAULT_JOB_TIMEOUT,
+} from './sqlite-queue.constants'
 
 @Injectable()
 export class SQLiteQueue {
@@ -51,12 +56,18 @@ export class SQLiteQueue {
       options = (dataOrOptions as CreateJobOptions) ?? {}
     }
 
+    let retries = options.retries ?? SQLITE_QUEUE_DEFAULT_JOB_RETRIES
+    let timeout = options.timeout ?? SQLITE_QUEUE_DEFAULT_JOB_TIMEOUT
+    let failOnTimeout = options.failOnTimeout ?? SQLITE_QUEUE_DEFAULT_JOB_FAIL_ON_STALLED
+
     const job = await this.job.create(
       {
         name,
         data,
         status: JobStatus.WAITING,
-        ...options,
+        retries,
+        timeout,
+        failOnTimeout,
       },
       { transaction: tx }
     )
@@ -184,6 +195,25 @@ export class SQLiteQueue {
         status: JobStatus.STALLED,
         updatedAt: updateDate,
         stalledAt: updateDate,
+      },
+      { transaction: tx }
+    )
+
+    return job.dataValues
+  }
+
+  async markForRetry(id: number, tx?: Transaction): Promise<Job | null> {
+    const job = await this.job.findByPk(id, { transaction: tx })
+
+    if (!job) {
+      throw new JobNotFoundError(`Job with id ${id} not found`)
+    }
+
+    await job.update(
+      {
+        status: JobStatus.WAITING,
+        retried: job.retried + 1,
+        updatedAt: new Date(),
       },
       { transaction: tx }
     )

@@ -15,7 +15,9 @@ export interface Job {
   resultData: JSONObject
   status: JobStatus
   retries: number
-  maxRetries: number
+  retried: number
+  timeout: number
+  failOnTimeout: boolean
   createdAt: Date
   processingAt: Date
   doneAt: Date
@@ -63,7 +65,13 @@ export class JobModel extends Model<Job> {
   retries: number
 
   @Column({ allowNull: true, defaultValue: 0 })
-  maxRetries: number
+  retried: number
+
+  @Column({ allowNull: false, defaultValue: 30000 })
+  timeout: number
+
+  @Column({ allowNull: false, defaultValue: false })
+  failOnTimeout: boolean
 
   @Column({})
   @Index({})
@@ -124,10 +132,19 @@ export function createJobModelDefinition(tableName: string, sequelize: Sequelize
         allowNull: true,
         defaultValue: 0,
       },
-      maxRetries: {
+      retried: {
         type: DataType.INTEGER,
         allowNull: true,
         defaultValue: 0,
+      },
+      timeout: {
+        type: DataType.INTEGER,
+        allowNull: false,
+      },
+      failOnTimeout: {
+        type: DataType.BOOLEAN,
+        allowNull: false,
+        defaultValue: false,
       },
       createdAt: {
         type: DataType.DATE,

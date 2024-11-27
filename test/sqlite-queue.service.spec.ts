@@ -5,7 +5,12 @@ import { JobModel, JobStatus } from '../src/models/job.model'
 import { createJobModel, createSequelizeConnection } from '../src/sqlite-queue.util'
 import { JobNotFoundError } from '../src/sqlite-queue.errors'
 import * as crypto from 'crypto'
-import { log } from 'console'
+import {
+  SQLITE_QUEUE_DEFAULT_JOB_FAIL_ON_STALLED,
+  SQLITE_QUEUE_DEFAULT_JOB_RETRIES,
+  SQLITE_QUEUE_DEFAULT_JOB_TIMEOUT,
+} from '../src/sqlite-queue.constants'
+import { sleep } from './e2e/src/util'
 
 describe('SQLiteQueue', () => {
   let connection: Sequelize
@@ -62,8 +67,10 @@ describe('SQLiteQueue', () => {
       expect(job.name).toBe(null)
       expect(job.status).toBe(JobStatus.WAITING)
       expect(job.data).toEqual({ data: { test: 'test' } })
-      expect(job.retries).toBe(0)
-      expect(job.maxRetries).toBe(0)
+      expect(job.retries).toBe(SQLITE_QUEUE_DEFAULT_JOB_RETRIES)
+      expect(job.retried).toBe(0)
+      expect(job.timeout).toBe(SQLITE_QUEUE_DEFAULT_JOB_TIMEOUT)
+      expect(job.failOnTimeout).toBe(SQLITE_QUEUE_DEFAULT_JOB_FAIL_ON_STALLED)
 
       let jobs = await jobModel.findAll()
       expect(jobs).toHaveLength(1)
@@ -80,8 +87,10 @@ describe('SQLiteQueue', () => {
       expect(job.name).toBe('test')
       expect(job.status).toBe(JobStatus.WAITING)
       expect(job.data).toEqual({ data: { test: 'test' } })
-      expect(job.retries).toBe(0)
-      expect(job.maxRetries).toBe(0)
+      expect(job.retries).toBe(SQLITE_QUEUE_DEFAULT_JOB_RETRIES)
+      expect(job.retried).toBe(0)
+      expect(job.timeout).toBe(SQLITE_QUEUE_DEFAULT_JOB_TIMEOUT)
+      expect(job.failOnTimeout).toBe(SQLITE_QUEUE_DEFAULT_JOB_FAIL_ON_STALLED)
 
       let jobs = await jobModel.findAll()
       expect(jobs).toHaveLength(1)
@@ -91,14 +100,19 @@ describe('SQLiteQueue', () => {
     })
 
     it('should add a job with options to the queue', async () => {
-      let job = await queue.createJob({ data: { test: 'test' } }, { maxRetries: 3 })
+      let job = await queue.createJob(
+        { data: { test: 'test' } },
+        { retries: 3, timeout: 1000, failOnTimeout: true }
+      )
 
       expect(job).toBeDefined()
       expect(job.id).toBeDefined()
       expect(job.name).toBe(null)
       expect(job.status).toBe(JobStatus.WAITING)
-      expect(job.maxRetries).toBe(3)
-      expect(job.retries).toBe(0)
+      expect(job.retried).toBe(0)
+      expect(job.retries).toBe(3)
+      expect(job.timeout).toBe(1000)
+      expect(job.failOnTimeout).toBe(true)
 
       let jobs = await jobModel.findAll()
       expect(jobs).toHaveLength(1)
@@ -108,15 +122,21 @@ describe('SQLiteQueue', () => {
     })
 
     it('should add a named job with options to the queue', async () => {
-      let job = await queue.createJob('test', { data: { test: 'test' } }, { maxRetries: 3 })
+      let job = await queue.createJob(
+        'test',
+        { data: { test: 'test' } },
+        { retries: 3, timeout: 1000, failOnTimeout: true }
+      )
 
       expect(job).toBeDefined()
       expect(job.id).toBeDefined()
       expect(job.name).toBe('test')
       expect(job.data).toEqual({ data: { test: 'test' } })
       expect(job.status).toBe(JobStatus.WAITING)
-      expect(job.maxRetries).toBe(3)
-      expect(job.retries).toBe(0)
+      expect(job.retries).toBe(3)
+      expect(job.retried).toBe(0)
+      expect(job.timeout).toBe(1000)
+      expect(job.failOnTimeout).toBe(true)
 
       let jobs = await jobModel.findAll()
       expect(jobs).toHaveLength(1)
@@ -325,6 +345,7 @@ describe('SQLiteQueue', () => {
 
     it('should update its timestamp fields', async () => {
       let job = await queue.createJob({})
+      await sleep(1)
       let failedJob = await queue.markAsFailed(job.id)
 
       expect(failedJob.id).toBe(job.id)
@@ -374,6 +395,46 @@ describe('SQLiteQueue', () => {
       let id = 1
       await expect(queue.markAsStalled(id)).rejects.toThrow(`Job with id ${id} not found`)
       await expect(queue.markAsStalled(id)).rejects.toThrow(JobNotFoundError)
+    })
+  })
+
+  describe('markForRetry', () => {
+    it('should mark a job for retry and updated its timestamp fields', async () => {
+      let job = await queue.createJob({})
+      let jobInDb = await jobModel.findOne({ where: { id: job.id } })
+      expect(job.retried).toBe(0)
+      expect(jobInDb.retried).toEqual(0)
+
+      let retriedJob = await queue.markForRetry(job.id)
+
+      expect(retriedJob.id).toBe(job.id)
+      expect(retriedJob.status).toBe(JobStatus.WAITING)
+      expect(retriedJob.retried).toBe(1)
+
+      jobInDb = await jobModel.findOne({ where: { id: job.id } })
+      expect(jobInDb.dataValues).toEqual(retriedJob)
+
+      await queue.markForRetry(job.id)
+
+      let retriedJobInDb = await jobModel.findOne({ where: { id: job.id } })
+      expect(retriedJobInDb.retried).toBe(2)
+    })
+
+    it('should update its timestamp fields', async () => {
+      let job = await queue.createJob({})
+      let retriedJob = await queue.markForRetry(job.id)
+
+      expect(retriedJob.id).toBe(job.id)
+
+      expect(retriedJob.updatedAt.getMilliseconds()).toBeGreaterThan(
+        job.updatedAt.getMilliseconds()
+      )
+    })
+
+    it('should throw an error if job is not found', async () => {
+      let id = 1
+      await expect(queue.markForRetry(id)).rejects.toThrow(`Job with id ${id} not found`)
+      await expect(queue.markForRetry(id)).rejects.toThrow(JobNotFoundError)
     })
   })
 

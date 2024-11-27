@@ -6,7 +6,7 @@ export interface SQLiteQueueConfig {
   connection?: string
   pollRate?: number
   maxParallelJobs?: number
-  jobTimeout?: number
+
   synchronize?: SyncOptions
 }
 
@@ -20,5 +20,7 @@ export interface SQLiteQueueModuleAsyncConfig extends Pick<ModuleMetadata, 'impo
 }
 
 export interface CreateJobOptions {
-  maxRetries?: number
+  retries?: number
+  timeout?: number
+  failOnTimeout?: boolean
 }

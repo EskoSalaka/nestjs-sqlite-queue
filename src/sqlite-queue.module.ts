@@ -22,11 +22,12 @@ import {
   getQueueToken,
   getWorkerEventName,
 } from './sqlite-queue.util'
-import { JobModel, type JobStatus } from './models/job.model'
+import { JobModel } from './models/job.model'
 import { defer, lastValueFrom } from 'rxjs'
 import { EventEmitter } from 'node:events'
 import { SQLiteQueueMetadataAccessor } from './sqlite-queue.meta-accessor'
 import { ModuleRef } from '@nestjs/core'
+import type { WorkerEvent } from './sqlite-queue.types'
 
 @Global()
 @Module({})
@@ -114,7 +115,7 @@ export class SQLiteQueueModule {
       eventEmitter.on(
         getWorkerEventName(
           config.name ?? SQLITE_QUEUE_DEFAULT_QUEUE_NAME,
-          workerEventMethodWithMeta.methodMeta as JobStatus
+          workerEventMethodWithMeta.methodMeta as WorkerEvent
         ),
         (job: any) => consumerInstance[workerEventMethodWithMeta.methodName](job)
       )

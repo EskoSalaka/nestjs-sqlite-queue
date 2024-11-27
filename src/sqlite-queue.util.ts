@@ -6,6 +6,7 @@ import {
 import { Sequelize, type SequelizeOptions } from 'sequelize-typescript'
 import type { SQLiteQueueModuleConfig } from './sqlite-queue.interfaces'
 import type { SyncOptions } from 'sequelize'
+import type { WorkerEvent } from './sqlite-queue.types'
 
 export function getConnectionToken(
   connection: string = SQLITE_QUEUE_DEFAULT_CONNECTION_NAME
@@ -17,8 +18,8 @@ export function getQueueToken(name: string = SQLITE_QUEUE_DEFAULT_QUEUE_NAME): s
   return 'SQLiteQueue:' + name
 }
 
-export function getWorkerEventName(name: string, status: JobStatus): string {
-  return `SQLiteQueueWorkerEvent:${name}:${status}`
+export function getWorkerEventName(name: string, event: WorkerEvent): string {
+  return `SQLiteQueueWorkerEvent:${name}:${event}`
 }
 
 export async function createSequelizeConnection(config: SQLiteQueueModuleConfig) {

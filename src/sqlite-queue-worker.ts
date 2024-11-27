@@ -1,18 +1,18 @@
 import { Injectable } from '@nestjs/common'
-import { JobStatus, type Job } from './models/job.model'
+import { type Job } from './models/job.model'
 import { getWorkerEventName } from './sqlite-queue.util'
 import EventEmitter from 'node:events'
 import type { SQLiteQueueConfig } from './sqlite-queue.interfaces'
 import type { SQLiteQueue } from './sqlite-queue.service'
 import { SQLITE_QUEUE_DEFAULT_QUEUE_NAME } from './sqlite-queue.constants'
 import { JobTimeoutError } from './sqlite-queue.errors'
+import { WorkerEvent } from './sqlite-queue.types'
 
 @Injectable()
 export class SQLiteQueueWorker {
-  private pollRate: number = 1000
+  private pollRate: number
   private activeJobs: number = 0
   private maxParallelJobs: number
-  private jobTimeout: number
 
   constructor(
     private readonly config: SQLiteQueueConfig,
@@ -20,7 +20,6 @@ export class SQLiteQueueWorker {
     private readonly eventEmitter: EventEmitter
   ) {
     this.maxParallelJobs = config.maxParallelJobs || 0
-    this.jobTimeout = config.jobTimeout || 30000
     this.pollRate = config.pollRate || 1000
 
     setInterval(() => {
@@ -29,7 +28,10 @@ export class SQLiteQueueWorker {
   }
 
   private async consumeEvents() {
-    if (this.queue.isPaused()) {
+    if (
+      this.queue.isPaused() ||
+      (this.maxParallelJobs && this.activeJobs >= this.maxParallelJobs)
+    ) {
       return
     }
 
@@ -59,16 +61,24 @@ export class SQLiteQueueWorker {
    */
   private async handleJob(event: Job) {
     let jobHandler = this.getHandlerMethod(event)
-    let jobResult = await this.raceExecutionTimeout(jobHandler, event, this.jobTimeout)
+    let jobResult = await this.raceExecutionTimeout(jobHandler, event, event.timeout)
 
     return jobResult
   }
 
-  private emitWorkerEvent(event: Job, status: JobStatus) {
-    this.eventEmitter.emit(
-      getWorkerEventName(this.config.name ?? SQLITE_QUEUE_DEFAULT_QUEUE_NAME, status),
-      event
-    )
+  private emitWorkerEvent(event: Job, workerEvent: WorkerEvent, extras?: unknown) {
+    if (extras) {
+      this.eventEmitter.emit(
+        getWorkerEventName(this.config.name ?? SQLITE_QUEUE_DEFAULT_QUEUE_NAME, workerEvent),
+        event,
+        extras
+      )
+    } else {
+      this.eventEmitter.emit(
+        getWorkerEventName(this.config.name ?? SQLITE_QUEUE_DEFAULT_QUEUE_NAME, workerEvent),
+        event
+      )
+    }
   }
 
   private async findFirstAndMarkAsProcessing(): Promise<Job | null> {
@@ -83,7 +93,7 @@ export class SQLiteQueueWorker {
 
     let processingEvent = await this.queue.markAsProcessing(event.id, transaction)
     await transaction.commit()
-    this.emitWorkerEvent(processingEvent, JobStatus.PROCESSING)
+    this.emitWorkerEvent(processingEvent, WorkerEvent.PROCESSING)
 
     if (this.maxParallelJobs) {
       this.activeJobs++
@@ -92,24 +102,33 @@ export class SQLiteQueueWorker {
     return processingEvent
   }
 
-  //#TODO: Implement other error handling, like retries and save error message/stacktrace
+  //#TODO: Implement save error message/stacktrace
   private async handleFailure(event: Job, error: unknown) {
+    this.emitWorkerEvent(event, WorkerEvent.ERROR, error)
+
+    // Note: Stalled jobs are not retried
     if (error instanceof JobTimeoutError) {
       let stalledEvent = await this.queue.markAsStalled(event.id)
-      this.emitWorkerEvent(stalledEvent, JobStatus.STALLED)
+      this.emitWorkerEvent(stalledEvent, WorkerEvent.STALLED)
 
       return stalledEvent
     }
 
+    if (event.retries > 0) {
+      let retriedEvent = await this.queue.markForRetry(event.id)
+
+      return retriedEvent
+    }
+
     let failedEvent = await this.queue.markAsFailed(event.id)
-    this.emitWorkerEvent(failedEvent, JobStatus.FAILED)
+    this.emitWorkerEvent(failedEvent, WorkerEvent.FAILED, error)
 
     return failedEvent
   }
 
   private async completeJob(event: Job, result: any) {
     let processedEvent = await this.queue.markAsProcessed(event.id, result)
-    this.emitWorkerEvent(processedEvent, JobStatus.DONE)
+    this.emitWorkerEvent(processedEvent, WorkerEvent.DONE, result)
 
     return processedEvent
   }
@@ -143,7 +162,7 @@ export class SQLiteQueueWorker {
   private runTimer(timeoutHandler: NodeJS.Timeout, timeout: number) {
     return new Promise((_, reject) => {
       timeoutHandler = setTimeout(() => {
-        reject(new JobTimeoutError(`Job timed out after ${this.jobTimeout}ms`))
+        reject(new JobTimeoutError(`Job timed out after ${timeout}ms`))
       }, timeout)
     })
   }

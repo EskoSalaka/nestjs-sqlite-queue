@@ -1,7 +1,8 @@
 import { EventEmitter } from 'node:events'
 import { SQLiteQueueWorker } from '../src/sqlite-queue-worker'
 import { SQLiteQueue } from '../src/sqlite-queue.service'
-import { JobStatus, Job } from '../src/models/job.model'
+import { Job } from '../src/models/job.model'
+import { WorkerEvent } from '../src/sqlite-queue.types'
 import { type SQLiteQueueConfig } from 'src'
 import { JobTimeoutError } from '../src/sqlite-queue.errors'
 
@@ -94,7 +95,7 @@ describe('SQLiteQueueWorker', () => {
 
       await (worker as any).findFirstAndMarkAsProcessing()
 
-      expect(emitSpy).toHaveBeenCalledWith(job, JobStatus.PROCESSING)
+      expect(emitSpy).toHaveBeenCalledWith(job, WorkerEvent.PROCESSING)
     })
 
     it('should increment activeJobs if maxParallelJobs is set', async () => {
@@ -206,9 +207,10 @@ describe('SQLiteQueueWorker', () => {
       queue.markAsProcessed = jest.fn().mockResolvedValue(job)
       const emitSpy = jest.spyOn(worker as any, 'emitWorkerEvent')
 
-      await (worker as any).completeJob(job)
+      let testResult = { testResultData: 'result' }
+      await (worker as any).completeJob(job, testResult)
 
-      expect(emitSpy).toHaveBeenCalledWith(job, JobStatus.DONE)
+      expect(emitSpy).toHaveBeenCalledWith(job, WorkerEvent.DONE, testResult)
     })
   })
 
@@ -223,14 +225,26 @@ describe('SQLiteQueueWorker', () => {
       expect(queue.markAsFailed).toHaveBeenCalledWith(job.id)
     })
 
+    it('should emit an ERROR event for the job', async () => {
+      const job: Job = { id: 1 } as any
+      queue.markAsFailed = jest.fn().mockResolvedValue(job)
+      const emitSpy = jest.spyOn(worker as any, 'emitWorkerEvent')
+
+      let testError = new Error('test error')
+      await (worker as any).handleFailure(job, testError)
+
+      expect(emitSpy).toHaveBeenCalledWith(job, WorkerEvent.ERROR, testError)
+    })
+
     it('should emit a FAILED event for the job', async () => {
       const job: Job = { id: 1 } as any
       queue.markAsFailed = jest.fn().mockResolvedValue(job)
       const emitSpy = jest.spyOn(worker as any, 'emitWorkerEvent')
 
-      await (worker as any).handleFailure(job, 'error')
+      let testError = new Error('test error')
+      await (worker as any).handleFailure(job, testError)
 
-      expect(emitSpy).toHaveBeenCalledWith(job, JobStatus.FAILED)
+      expect(emitSpy).toHaveBeenCalledWith(job, WorkerEvent.FAILED, testError)
     })
   })
 
@@ -239,7 +253,7 @@ describe('SQLiteQueueWorker', () => {
       const job: Job = { id: 1 } as any
       const emitSpy = jest.spyOn(eventEmitter, 'emit')
 
-      ;(worker as any).emitWorkerEvent(job, JobStatus.PROCESSING)
+      ;(worker as any).emitWorkerEvent(job, WorkerEvent.PROCESSING)
 
       expect(emitSpy).toHaveBeenCalledWith(expect.any(String), job)
     })
