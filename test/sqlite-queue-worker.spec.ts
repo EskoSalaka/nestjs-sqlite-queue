@@ -218,11 +218,14 @@ describe('SQLiteQueueWorker', () => {
     it('should mark a job as failed and emit a FAILED event', async () => {
       const job: Job = { id: 1 } as any
       queue.markAsFailed = jest.fn().mockResolvedValue(job)
+      queue.markAsStalled = jest.fn().mockResolvedValue(job)
 
-      const result = await (worker as any).handleFailure(job, 'error')
+      let testError = new Error('test error')
+      const result = await (worker as any).handleFailure(job, testError)
 
       expect(result).toEqual(job)
-      expect(queue.markAsFailed).toHaveBeenCalledWith(job.id)
+      expect(queue.markAsFailed).toHaveBeenCalledWith(job.id, testError)
+      expect(queue.markAsStalled).not.toHaveBeenCalled()
     })
 
     it('should emit an ERROR event for the job', async () => {
@@ -245,6 +248,76 @@ describe('SQLiteQueueWorker', () => {
       await (worker as any).handleFailure(job, testError)
 
       expect(emitSpy).toHaveBeenCalledWith(job, WorkerEvent.FAILED, testError)
+    })
+
+    it('should mark a job as stalled and if the job is not set to fail on timeout', async () => {
+      const job: Job = { id: 1, failOnTimeout: false } as any
+      queue.markAsStalled = jest.fn().mockResolvedValue(job)
+      queue.markAsFailed = jest.fn().mockResolvedValue(job)
+
+      let testTimmeoutError = new JobTimeoutError('test error')
+      const result = await (worker as any).handleFailure(job, testTimmeoutError)
+
+      expect(result).toEqual(job)
+      expect(queue.markAsStalled).toHaveBeenCalledWith(job.id)
+      expect(queue.markAsFailed).not.toHaveBeenCalled()
+    })
+
+    it('should emit a STALLED event for the job  if the job is not set to fail on timeout', async () => {
+      const job: Job = { id: 1, failOnTimeout: false } as any
+      queue.markAsStalled = jest.fn().mockResolvedValue(job)
+      const emitSpy = jest.spyOn(worker as any, 'emitWorkerEvent')
+
+      let testTimmeoutError = new JobTimeoutError('test error')
+      await (worker as any).handleFailure(job, testTimmeoutError)
+
+      expect(emitSpy).toHaveBeenCalledWith(job, WorkerEvent.STALLED)
+    })
+
+    it('should mark the job as failed if the job is set to fail on timeout', async () => {
+      const job: Job = { id: 1, failOnTimeout: true } as any
+      queue.markAsFailed = jest.fn().mockResolvedValue(job)
+
+      let testTimmeoutError = new JobTimeoutError('test error')
+      const result = await (worker as any).handleFailure(job, testTimmeoutError)
+
+      expect(result).toEqual(job)
+      expect(queue.markAsFailed).toHaveBeenCalledWith(job.id, testTimmeoutError)
+    })
+
+    it('should not emit a STALLED event if the job is set to fail on timeout', async () => {
+      const job: Job = { id: 1, failOnTimeout: true } as any
+      queue.markAsFailed = jest.fn().mockResolvedValue(job)
+      const emitSpy = jest.spyOn(worker as any, 'emitWorkerEvent')
+
+      let testTimmeoutError = new JobTimeoutError('test error')
+      await (worker as any).handleFailure(job, testTimmeoutError)
+
+      expect(emitSpy).not.toHaveBeenCalledWith(job, WorkerEvent.STALLED)
+    })
+
+    it('should mark a job for retry if retries are available', async () => {
+      const job: Job = { id: 1, retries: 3, retriesAttempted: 2 } as any
+      queue.markForRetry = jest.fn().mockResolvedValue(job)
+
+      let testError = new Error('test error')
+      const result = await (worker as any).handleFailure(job, testError)
+
+      expect(result).toEqual(job)
+      expect(queue.markForRetry).toHaveBeenCalledWith(job.id)
+    })
+
+    it('should not mark a job for retry if no retries are available', async () => {
+      const job: Job = { id: 1, retries: 3, retriesAttempted: 3 } as any
+      queue.markForRetry = jest.fn().mockResolvedValue(job)
+      queue.markAsFailed = jest.fn().mockResolvedValue(job)
+
+      let testError = new Error('test error')
+      const result = await (worker as any).handleFailure(job, testError)
+
+      expect(result).toEqual(job)
+      expect(queue.markForRetry).not.toHaveBeenCalled()
+      expect(queue.markAsFailed).toHaveBeenCalledWith(job.id, testError)
     })
   })
 

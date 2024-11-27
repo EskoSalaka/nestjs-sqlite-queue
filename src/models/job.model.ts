@@ -15,9 +15,11 @@ export interface Job {
   resultData: JSONObject
   status: JobStatus
   retries: number
-  retried: number
+  retriesAttempted: number
   timeout: number
   failOnTimeout: boolean
+  errorMessage: string
+  errorStack: string
   createdAt: Date
   processingAt: Date
   doneAt: Date
@@ -65,13 +67,19 @@ export class JobModel extends Model<Job> {
   retries: number
 
   @Column({ allowNull: true, defaultValue: 0 })
-  retried: number
+  retriesAttempted: number
 
   @Column({ allowNull: false, defaultValue: 30000 })
   timeout: number
 
   @Column({ allowNull: false, defaultValue: false })
   failOnTimeout: boolean
+
+  @Column({ allowNull: true })
+  errorMessage: string
+
+  @Column({ allowNull: true })
+  errorStack: string
 
   @Column({})
   @Index({})
@@ -132,7 +140,7 @@ export function createJobModelDefinition(tableName: string, sequelize: Sequelize
         allowNull: true,
         defaultValue: 0,
       },
-      retried: {
+      retriesAttempted: {
         type: DataType.INTEGER,
         allowNull: true,
         defaultValue: 0,
@@ -145,6 +153,16 @@ export function createJobModelDefinition(tableName: string, sequelize: Sequelize
         type: DataType.BOOLEAN,
         allowNull: false,
         defaultValue: false,
+      },
+      errorMessage: {
+        type: DataType.STRING,
+        allowNull: true,
+        defaultValue: null,
+      },
+      errorStack: {
+        type: DataType.STRING,
+        allowNull: true,
+        defaultValue: null,
       },
       createdAt: {
         type: DataType.DATE,

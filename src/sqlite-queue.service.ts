@@ -162,7 +162,7 @@ export class SQLiteQueue {
     return job.dataValues
   }
 
-  async markAsFailed(id: number, tx?: Transaction): Promise<Job | null> {
+  async markAsFailed(id: number, error?: Error | unknown, tx?: Transaction): Promise<Job | null> {
     const job = await this.job.findByPk(id, { transaction: tx })
 
     if (!job) {
@@ -170,9 +170,13 @@ export class SQLiteQueue {
     }
 
     let updateDate = new Date()
+    let errorMessage = error instanceof Error ? error.message : null
+    let errorStack = error instanceof Error ? error.stack : null
     await job.update(
       {
         status: JobStatus.FAILED,
+        errorMessage,
+        errorStack,
         updatedAt: updateDate,
         failedAt: updateDate,
       },
@@ -212,7 +216,7 @@ export class SQLiteQueue {
     await job.update(
       {
         status: JobStatus.WAITING,
-        retried: job.retried + 1,
+        retriesAttempted: job.retriesAttempted + 1,
         updatedAt: new Date(),
       },
       { transaction: tx }

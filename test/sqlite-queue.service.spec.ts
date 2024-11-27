@@ -68,7 +68,7 @@ describe('SQLiteQueue', () => {
       expect(job.status).toBe(JobStatus.WAITING)
       expect(job.data).toEqual({ data: { test: 'test' } })
       expect(job.retries).toBe(SQLITE_QUEUE_DEFAULT_JOB_RETRIES)
-      expect(job.retried).toBe(0)
+      expect(job.retriesAttempted).toBe(0)
       expect(job.timeout).toBe(SQLITE_QUEUE_DEFAULT_JOB_TIMEOUT)
       expect(job.failOnTimeout).toBe(SQLITE_QUEUE_DEFAULT_JOB_FAIL_ON_STALLED)
 
@@ -88,7 +88,7 @@ describe('SQLiteQueue', () => {
       expect(job.status).toBe(JobStatus.WAITING)
       expect(job.data).toEqual({ data: { test: 'test' } })
       expect(job.retries).toBe(SQLITE_QUEUE_DEFAULT_JOB_RETRIES)
-      expect(job.retried).toBe(0)
+      expect(job.retriesAttempted).toBe(0)
       expect(job.timeout).toBe(SQLITE_QUEUE_DEFAULT_JOB_TIMEOUT)
       expect(job.failOnTimeout).toBe(SQLITE_QUEUE_DEFAULT_JOB_FAIL_ON_STALLED)
 
@@ -109,7 +109,7 @@ describe('SQLiteQueue', () => {
       expect(job.id).toBeDefined()
       expect(job.name).toBe(null)
       expect(job.status).toBe(JobStatus.WAITING)
-      expect(job.retried).toBe(0)
+      expect(job.retriesAttempted).toBe(0)
       expect(job.retries).toBe(3)
       expect(job.timeout).toBe(1000)
       expect(job.failOnTimeout).toBe(true)
@@ -134,7 +134,7 @@ describe('SQLiteQueue', () => {
       expect(job.data).toEqual({ data: { test: 'test' } })
       expect(job.status).toBe(JobStatus.WAITING)
       expect(job.retries).toBe(3)
-      expect(job.retried).toBe(0)
+      expect(job.retriesAttempted).toBe(0)
       expect(job.timeout).toBe(1000)
       expect(job.failOnTimeout).toBe(true)
 
@@ -229,7 +229,7 @@ describe('SQLiteQueue', () => {
   })
 
   describe('markAsWaiting', () => {
-    it('should mark a job as waiting and updated its timestamp fields', async () => {
+    it('should mark a job as waiting', async () => {
       let job = await queue.createJob({})
 
       let waitingJob = await queue.markAsWaiting(job.id)
@@ -264,7 +264,7 @@ describe('SQLiteQueue', () => {
   })
 
   describe('markAsProcessing', () => {
-    it('should mark a job as processing and updated its timestamp fields', async () => {
+    it('should mark a job as processing', async () => {
       let job = await queue.createJob({})
       let processedJob = await queue.markAsProcessing(job.id)
 
@@ -277,6 +277,7 @@ describe('SQLiteQueue', () => {
 
     it('should update its timestamp fields', async () => {
       let job = await queue.createJob({})
+      await sleep(10)
       let processedJob = await queue.markAsProcessing(job.id)
 
       expect(processedJob.id).toBe(job.id)
@@ -298,7 +299,7 @@ describe('SQLiteQueue', () => {
   })
 
   describe('markAsProcessed', () => {
-    it('should mark a job as processed with result data and updated its timestamp fields', async () => {
+    it('should mark a job as processed with result data', async () => {
       let job = await queue.createJob({})
       let result = { data: { test: 'test' } }
       let processedJob = await queue.markAsProcessed(job.id, result)
@@ -312,6 +313,7 @@ describe('SQLiteQueue', () => {
 
     it('should update its timestamp fields', async () => {
       let job = await queue.createJob({})
+      await sleep(10)
       let processedJob = await queue.markAsProcessed(job.id, {})
 
       expect(processedJob.id).toBe(job.id)
@@ -343,9 +345,21 @@ describe('SQLiteQueue', () => {
       expect(jobInDb.dataValues).toEqual(failedJob)
     })
 
+    it('should mark a job as failed with error data', async () => {
+      let job = await queue.createJob({})
+      let error = new Error('test error')
+      error.stack = 'test stack'
+      let failedJob = await queue.markAsFailed(job.id, error)
+
+      expect(failedJob.id).toBe(job.id)
+      expect(failedJob.status).toBe(JobStatus.FAILED)
+      expect(failedJob.errorMessage).toBe(error.message)
+      expect(failedJob.errorStack).toBe(error.stack)
+    })
+
     it('should update its timestamp fields', async () => {
       let job = await queue.createJob({})
-      await sleep(1)
+      await sleep(10)
       let failedJob = await queue.markAsFailed(job.id)
 
       expect(failedJob.id).toBe(job.id)
@@ -367,6 +381,7 @@ describe('SQLiteQueue', () => {
   describe('markAsStalled', () => {
     it('should mark a job as stalled and updated its timestamp fields', async () => {
       let job = await queue.createJob({})
+      await sleep(10)
       let stalledJob = await queue.markAsStalled(job.id)
 
       expect(stalledJob.id).toBe(job.id)
@@ -378,6 +393,7 @@ describe('SQLiteQueue', () => {
 
     it('should update its timestamp fields', async () => {
       let job = await queue.createJob({})
+      await sleep(10)
       let stalledJob = await queue.markAsStalled(job.id)
 
       expect(stalledJob.id).toBe(job.id)
@@ -399,17 +415,17 @@ describe('SQLiteQueue', () => {
   })
 
   describe('markForRetry', () => {
-    it('should mark a job for retry and updated its timestamp fields', async () => {
+    it('should mark a job for retry', async () => {
       let job = await queue.createJob({})
       let jobInDb = await jobModel.findOne({ where: { id: job.id } })
-      expect(job.retried).toBe(0)
-      expect(jobInDb.retried).toEqual(0)
+      expect(job.retriesAttempted).toBe(0)
+      expect(jobInDb.retriesAttempted).toEqual(0)
 
       let retriedJob = await queue.markForRetry(job.id)
 
       expect(retriedJob.id).toBe(job.id)
       expect(retriedJob.status).toBe(JobStatus.WAITING)
-      expect(retriedJob.retried).toBe(1)
+      expect(retriedJob.retriesAttempted).toBe(1)
 
       jobInDb = await jobModel.findOne({ where: { id: job.id } })
       expect(jobInDb.dataValues).toEqual(retriedJob)
@@ -417,11 +433,12 @@ describe('SQLiteQueue', () => {
       await queue.markForRetry(job.id)
 
       let retriedJobInDb = await jobModel.findOne({ where: { id: job.id } })
-      expect(retriedJobInDb.retried).toBe(2)
+      expect(retriedJobInDb.retriesAttempted).toBe(2)
     })
 
     it('should update its timestamp fields', async () => {
       let job = await queue.createJob({})
+      await sleep(10)
       let retriedJob = await queue.markForRetry(job.id)
 
       expect(retriedJob.id).toBe(job.id)

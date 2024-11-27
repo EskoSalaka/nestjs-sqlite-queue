@@ -102,25 +102,26 @@ export class SQLiteQueueWorker {
     return processingEvent
   }
 
-  //#TODO: Implement save error message/stacktrace
   private async handleFailure(event: Job, error: unknown) {
     this.emitWorkerEvent(event, WorkerEvent.ERROR, error)
 
-    // Note: Stalled jobs are not retried
-    if (error instanceof JobTimeoutError) {
+    // Note: If the job is created with failOnTimeout=false the job will be marked as stalled
+    // instead of failed when it times out. If the job is created with failOnTimeout=true, the
+    // job will be marked as failed on timeout AND retries will be attempted if applicable.
+    if (error instanceof JobTimeoutError && !event.failOnTimeout) {
       let stalledEvent = await this.queue.markAsStalled(event.id)
       this.emitWorkerEvent(stalledEvent, WorkerEvent.STALLED)
 
       return stalledEvent
     }
 
-    if (event.retries > 0) {
+    if (event.retries > 0 && event.retries > event.retriesAttempted) {
       let retriedEvent = await this.queue.markForRetry(event.id)
 
       return retriedEvent
     }
 
-    let failedEvent = await this.queue.markAsFailed(event.id)
+    let failedEvent = await this.queue.markAsFailed(event.id, error)
     this.emitWorkerEvent(failedEvent, WorkerEvent.FAILED, error)
 
     return failedEvent
