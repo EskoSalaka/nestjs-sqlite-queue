@@ -1,5 +1,4 @@
 import { Test, TestingModule } from '@nestjs/testing'
-import { Sequelize } from 'sequelize-typescript'
 import { SQLiteQueue } from '../src/sqlite-queue.service'
 import { JobModel } from '../src/models/job.model'
 import { createJobModel, createSequelizeConnection } from '../src/sqlite-queue.util'
@@ -12,6 +11,7 @@ import {
 } from '../src/sqlite-queue.constants'
 import { sleep } from './e2e/src/util'
 import { JobStatus } from '../src/sqlite-queue.interfaces'
+import { Sequelize } from 'sequelize'
 
 describe('SQLiteQueue', () => {
   let connection: Sequelize
@@ -44,7 +44,7 @@ describe('SQLiteQueue', () => {
 
     connection = module.get<Sequelize>(Sequelize)
     queue = module.get<SQLiteQueue>(SQLiteQueue)
-    jobModel = connection.model('default_queue') as typeof JobModel
+    jobModel = connection.model('default_queue') as unknown as typeof JobModel
   })
 
   afterEach(async () => {

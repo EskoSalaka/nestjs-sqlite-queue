@@ -3,9 +3,8 @@ import {
   SQLITE_QUEUE_DEFAULT_CONNECTION_NAME,
   SQLITE_QUEUE_DEFAULT_QUEUE_NAME,
 } from './sqlite-queue.constants'
-import { Sequelize, type SequelizeOptions } from 'sequelize-typescript'
 import type { SQLiteQueueModuleConfig } from './sqlite-queue.interfaces'
-import type { SyncOptions } from 'sequelize'
+import { Sequelize, type Options, type SyncOptions } from 'sequelize'
 import type { WorkerEvent } from './sqlite-queue.types'
 
 export function getConnectionToken(
@@ -23,14 +22,12 @@ export function getWorkerEventName(name: string, event: WorkerEvent): string {
 }
 
 export async function createSequelizeConnection(config: SQLiteQueueModuleConfig) {
-  let sequelizeConnectionOptions: SequelizeOptions = {
+  let sequelizeConnectionOptions: Options = {
     dialect: 'sqlite',
-    repositoryMode: true,
     storage: config.storage,
     dialectOptions: {
       mode: 0,
     },
-    models: [],
     logging: false,
     //logging: (msg) => log(options.storagePath, msg),
   }

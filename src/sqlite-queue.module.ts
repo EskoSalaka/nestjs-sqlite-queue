@@ -14,7 +14,6 @@ import {
 } from './sqlite-queue.constants'
 import { SQLiteQueueWorker } from './sqlite-queue-worker'
 import { MetadataScanner, DiscoveryService, Reflector } from '@nestjs/core'
-import { Sequelize } from 'sequelize-typescript'
 import {
   createJobModel,
   createSequelizeConnection,
@@ -28,6 +27,7 @@ import { EventEmitter } from 'node:events'
 import { SQLiteQueueMetadataAccessor } from './sqlite-queue.meta-accessor'
 import { ModuleRef } from '@nestjs/core'
 import type { WorkerEvent } from './sqlite-queue.types'
+import { Sequelize } from 'sequelize'
 
 @Global()
 @Module({})
