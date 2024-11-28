@@ -1,8 +1,14 @@
 import { Injectable } from '@nestjs/common'
-import { JobModel, JobStatus, type Job, type JSONObject, type JSONValue } from './models/job.model'
+import { JobModel } from './models/job.model'
 import { Sequelize, Transaction, WhereOptions } from 'sequelize'
 import { JobNotFoundError } from './sqlite-queue.errors'
-import type { CreateJobOptions } from './sqlite-queue.interfaces'
+import {
+  JobStatus,
+  type CreateJobOptions,
+  type Job,
+  type JSONObject,
+  type JSONValue,
+} from './sqlite-queue.interfaces'
 import {
   SQLITE_QUEUE_DEFAULT_JOB_FAIL_ON_STALLED,
   SQLITE_QUEUE_DEFAULT_JOB_RETRIES,

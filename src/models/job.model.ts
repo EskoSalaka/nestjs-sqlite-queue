@@ -1,38 +1,5 @@
 import { Column, DataType, Index, Model, Table, type Sequelize } from 'sequelize-typescript'
-
-export enum JobStatus {
-  WAITING = 'WAITING',
-  PROCESSING = 'PROCESSING',
-  DONE = 'DONE',
-  STALLED = 'STALLED',
-  FAILED = 'FAILED',
-}
-
-export interface Job {
-  id: number
-  name: string
-  data: JSONObject
-  resultData: JSONObject
-  status: JobStatus
-  retries: number
-  retriesAttempted: number
-  timeout: number
-  failOnTimeout: boolean
-  errorMessage: string
-  errorStack: string
-  createdAt: Date
-  processingAt: Date
-  doneAt: Date
-  stalledAt: Date
-  failedAt: Date
-  updatedAt: Date
-}
-
-interface JSONArray extends Array<JSONValue> {}
-export type JSONValue = string | number | boolean | null | JSONObject | JSONArray
-export interface JSONObject {
-  [x: string]: JSONValue
-}
+import { JobStatus, type Job, type JSONObject } from '../sqlite-queue.interfaces'
 
 @Table({
   tableName: 'default_queue',
@@ -211,3 +178,4 @@ export function createJobModelDefinition(
     }
   )
 }
+export { Job }
