@@ -12,7 +12,7 @@ import {
 } from '../../src/sqlite-queue.constants'
 import { TestService } from './src/test.service'
 import { type SQLiteQueue } from 'src'
-import { JobStatus } from '../../src/models/job.model'
+import { JobStatus } from '../../src/sqlite-queue.interfaces'
 import type { Sequelize } from 'sequelize'
 import { sleep } from './src/util'
 

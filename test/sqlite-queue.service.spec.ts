@@ -1,7 +1,7 @@
 import { Test, TestingModule } from '@nestjs/testing'
 import { Sequelize } from 'sequelize-typescript'
 import { SQLiteQueue } from '../src/sqlite-queue.service'
-import { JobModel, JobStatus } from '../src/models/job.model'
+import { JobModel } from '../src/models/job.model'
 import { createJobModel, createSequelizeConnection } from '../src/sqlite-queue.util'
 import { JobNotFoundError } from '../src/sqlite-queue.errors'
 import * as crypto from 'crypto'
@@ -11,6 +11,7 @@ import {
   SQLITE_QUEUE_DEFAULT_JOB_TIMEOUT,
 } from '../src/sqlite-queue.constants'
 import { sleep } from './e2e/src/util'
+import { JobStatus } from '../src/sqlite-queue.interfaces'
 
 describe('SQLiteQueue', () => {
   let connection: Sequelize
