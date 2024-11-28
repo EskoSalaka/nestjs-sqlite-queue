@@ -62,7 +62,7 @@ export class SQLiteQueueModule {
 
   public static async registerQueue(config: SQLiteQueueConfig) {
     let sqliteQueueProvider = {
-      provide: getQueueToken(config.name ?? SQLITE_QUEUE_DEFAULT_QUEUE_NAME),
+      provide: getQueueToken(config.name),
       useFactory: async (dbConnection: Sequelize, metaAccessor: SQLiteQueueMetadataAccessor) => {
         let model = await createJobModel(config.name, dbConnection, config.synchronize)
 

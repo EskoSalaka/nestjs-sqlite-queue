@@ -101,7 +101,10 @@ export class JobModel extends Model<Job> {
   updatedAt: Date
 }
 
-export function createJobModelDefinition(tableName: string, sequelize: Sequelize) {
+export function createJobModelDefinition(
+  tableName: string = 'default_queue',
+  sequelize: Sequelize
+) {
   return sequelize.define(
     tableName,
     {

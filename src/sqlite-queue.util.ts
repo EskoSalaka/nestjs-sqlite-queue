@@ -1,4 +1,4 @@
-import { createJobModelDefinition, type JobStatus } from './models/job.model'
+import { createJobModelDefinition } from './models/job.model'
 import {
   SQLITE_QUEUE_DEFAULT_CONNECTION_NAME,
   SQLITE_QUEUE_DEFAULT_QUEUE_NAME,
@@ -43,7 +43,7 @@ export async function createSequelizeConnection(config: SQLiteQueueModuleConfig)
 }
 
 export async function createJobModel(
-  tableName: string,
+  tableName: string = 'default_queue',
   sequelize: Sequelize,
   syncOptions: SyncOptions
 ) {
