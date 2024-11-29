@@ -84,34 +84,125 @@ export interface CreateJobOptions {
   failOnTimeout?: boolean
 }
 
+/**
+ * Status of a job in the queue.
+ */
 export enum JobStatus {
+  /**
+   * The job is waiting to be processed.
+   */
   WAITING = 'WAITING',
+
+  /**
+   * The job is currently being processed.
+   */
   PROCESSING = 'PROCESSING',
+
+  /**
+   * The job has been processed successfully.
+   */
   DONE = 'DONE',
+
+  /**
+   * The job has stalled and is not progressing.
+   */
   STALLED = 'STALLED',
+
+  /**
+   * The job has failed to process.
+   */
   FAILED = 'FAILED',
 }
 
+/**
+ * Represents a job in the queue.
+ */
 export interface Job {
+  /**
+   * Unique identifier for the job.
+   */
   id: number
-  name: string
-  data: JSONObject
-  resultData: JSONObject
+
+  /**
+   * Name of the job.
+   */
+  name: string | null
+
+  /**
+   * Data associated with the job. Can be any JSON-serializable data and is used to store the input data for the job.
+   */
+  data: JSONObject | null
+
+  /**
+   * Result data after the job is processed. Can be any JSON-serializable data and is used to store the result of the job.
+   */
+  resultData: JSONObject | null
+
+  /**
+   * Current status of the job.
+   */
   status: JobStatus
+
+  /**
+   * Number of retries allowed for the job.
+   */
   retries: number
+
+  /**
+   * Number of retries attempted so far.
+   */
   retriesAttempted: number
+
+  /**
+   * Timeout duration for the job in milliseconds.
+   */
   timeout: number
+
+  /**
+   * Indicates if the job should fail when it times out.
+   */
   failOnTimeout: boolean
-  errorMessage: string
-  errorStack: string
+
+  /**
+   * Error message if the job fails.
+   */
+  errorMessage: string | null
+
+  /**
+   * Stack trace of the error if the job fails.
+   */
+  errorStack: string | null
+
+  /**
+   * Timestamp when the job was created.
+   */
   createdAt: Date
-  processingAt: Date
-  doneAt: Date
-  stalledAt: Date
-  failedAt: Date
+
+  /**
+   * Timestamp when the job started processing.
+   */
+  processingAt: Date | null
+
+  /**
+   * Timestamp when the job was completed.
+   */
+  doneAt: Date | null
+
+  /**
+   * Timestamp when the job was stalled.
+   */
+  stalledAt: Date | null
+
+  /**
+   * Timestamp when the job failed.
+   */
+  failedAt: Date | null
+
+  /**
+   * Timestamp when the job was last updated.
+   */
   updatedAt: Date
 }
-
 interface JSONArray extends Array<JSONValue> {}
 export type JSONValue = string | number | boolean | null | JSONObject | JSONArray
 export interface JSONObject {
