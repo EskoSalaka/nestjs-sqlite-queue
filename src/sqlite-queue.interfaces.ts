@@ -45,7 +45,13 @@ export interface SQLiteQueueConfig {
   synchronize?: SyncOptions
 }
 
+/**
+ * Configuration for the SQLiteQueueModule.
+ */
 export interface SQLiteQueueModuleConfig {
+  /**
+   * The path to the SQLite database file.
+   */
   storage: string
 }
 

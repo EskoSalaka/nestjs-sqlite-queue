@@ -2,6 +2,20 @@
 
 A simple locally persistent queue implementation for NestJS which uses SQLite and Sequelize under the hood.
 
+## Queus on SQLite vs Redis
+
+Redis and libraries like Bull and BullMQ are definitely the go-to solution for implementing queues in Node since they are mature, fast, reliable and scalable. However, for smaller projects or projects that don't require the scalability and reliability of Redis, an SQL database as a Queue will probably be just fine. In particular, sqlite is really easy to use and requires barely any setup unlike Redis for which you need to have a Redis server running.
+
+The main downside of using SQLite for queues is that it is not as fast as Redis and can't handle high loads as well. Any writes lock the whole SQLite database. SQLite is also not as reliable as Redis since it is a file-based database and can be corrupted if the application crashes while writing to the database.
+
+## Is it production ready?
+
+So far this library is well unit-tested but not at all proven in any real-world scenarios. There are sure to be more or less issues that I haven't thought of. I wrote it simply because I wanted to learn more about creating NestJs libraries, was lacking any good project to work on and was interested in learning more about Queues
+
+I would say that it is probably fine to use for a smaller project that has low traffic. I would not recommend using this in a serious production environment without testing it first.
+
+I will be happy to receive any feedback and I plan to add more features and improvements in the future.
+
 ## Installation and configuration
 
 Install the package using npm:
@@ -85,8 +99,67 @@ SqliteQueueModule.registerQueue({
 }),
 ```
 
-#Todo: Connection configuration
-#Todo: Explain queue configuration
+### Configuration options for the module
+
+```typescript
+/**
+ * Configuration for the SQLiteQueueModule.
+ */
+interface SQLiteQueueModuleConfig {
+  /**
+   * The path to the SQLite database file.
+   */
+  storage: string
+}
+```
+
+### Configuration options for the queue
+
+```typescript
+/**
+ * Configuration options for the SQLite queue.
+ */
+interface SQLiteQueueConfig {
+  /**
+   * The name of the queue. This is used to identify the queue in the database and the queue can then be
+   * injected into services using this name. If not provided, the default name will be used.
+   * @default undefined
+   */
+  name?: string
+
+  /**
+   * The name of the connection to use. If not provided, the default connection will be used.
+   * @default undefined
+   */
+  connection?: string
+
+  /**
+   * The rate at which the queue polls for new jobs, in milliseconds.
+   * @default 1000
+   */
+  pollRate?: number
+
+  /**
+   * The maximum number of jobs that can run in parallel. By default, there is no
+   * limit, but you probably want to use some specific limit to avoid overloading your system.
+   * @default undefined
+   */
+  maxParallelJobs?: number
+
+  /**
+   * Options for synchronizing the queue
+   * (see [Sequelize documentation](https://sequelize.org/master/manual/model-basics.html#synchronization)).
+   *
+   * Basically, syncing the queue will update the database schema to match the model definition. A new table will
+   * be created if it doesn't exist even without this option, but this can also be used to update
+   * the table when the model definition changes. Force-syncing will drop the table completely and recreate it.
+   *
+   * This is mostly meant for development purposes, and you probably don't want to use this in production.
+   * @default undefined
+   */
+  synchronize?: SyncOptions
+}
+```
 
 ## Using the queue
 
@@ -112,17 +185,167 @@ const job: Job = await this.myQueue.createJob({ dataForMyJob: 'data' }, { timeou
 
 ### Job options
 
-#TODO: Explain job options
+```typescript
+/**
+ * Options for creating a job in the queue.
+ */
+interface CreateJobOptions {
+  /**
+   * The number of times the job should be retried if it fails. If set to 0, the job will not be retried.
+   * This is to prevent jobs stalling and occupying the queue indefinitely.
+   * @default 30000
+   */
+  retries?: number
 
-### The Job objects
+  /**
+   * The maximum time (in milliseconds) the job is allowed to run before timing out.
+   * @default undefined
+   */
+  timeout?: number
 
-#TODO: Explain job objects
+  /**
+   * Whether the job should fail if it times out. If set to `false`, the job will be marked as STALLED instead
+   * of FAILED when it times out. If set to `true`, the job will be marked as FAILED on timeout AND retries will
+   * be attempted if applicable.
+   *
+   * Jobs that are marked STALLED might need to be handled somehow manually. This is to prevent issues with jobs potentially
+   * being processed multiple times if the worker crashes or is stopped while processing a job. Even if a job times
+   * out, it can possible still be running in the background and should then not be retried.
+   * @default false
+   */
+  failOnTimeout?: boolean
+}
+```
+
+### The Job objects in thye database
+
+```typescript
+/**
+ * Represents a job in the queue.
+ */
+interface Job {
+  /**
+   * Unique identifier for the job.
+   */
+  id: number
+
+  /**
+   * Name of the job.
+   */
+  name: string | null
+
+  /**
+   * Data associated with the job. Can be any JSON-serializable data and is used to store the input data for the job.
+   */
+  data: JSONObject | null
+
+  /**
+   * Result data after the job is processed. Can be any JSON-serializable data and is used to store the result of the job.
+   */
+  resultData: JSONObject | null
+
+  /**
+   * Current status of the job.
+   */
+  status: JobStatus
+
+  /**
+   * Number of retries allowed for the job.
+   */
+  retries: number
+
+  /**
+   * Number of retries attempted so far.
+   */
+  retriesAttempted: number
+
+  /**
+   * Timeout duration for the job in milliseconds.
+   */
+  timeout: number
+
+  /**
+   * Indicates if the job should fail when it times out.
+   */
+  failOnTimeout: boolean
+
+  /**
+   * Error message if the job fails.
+   */
+  errorMessage: string | null
+
+  /**
+   * Stack trace of the error if the job fails.
+   */
+  errorStack: string | null
+
+  /**
+   * Timestamp when the job was created.
+   */
+  createdAt: Date
+
+  /**
+   * Timestamp when the job started processing.
+   */
+  processingAt: Date | null
+
+  /**
+   * Timestamp when the job was completed.
+   */
+  doneAt: Date | null
+
+  /**
+   * Timestamp when the job was stalled.
+   */
+  stalledAt: Date | null
+
+  /**
+   * Timestamp when the job failed.
+   */
+  failedAt: Date | null
+
+  /**
+   * Timestamp when the job was last updated.
+   */
+  updatedAt: Date
+}
+
+/**
+ * Status of a job in the queue.
+ */
+enum JobStatus {
+  /**
+   * The job is waiting to be processed.
+   */
+  WAITING = 'WAITING',
+
+  /**
+   * The job is currently being processed.
+   */
+  PROCESSING = 'PROCESSING',
+
+  /**
+   * The job has been processed successfully.
+   */
+  DONE = 'DONE',
+
+  /**
+   * The job has stalled and is not progressing.
+   */
+  STALLED = 'STALLED',
+
+  /**
+   * The job has failed to process.
+   */
+  FAILED = 'FAILED',
+}
+```
 
 ### The SQLiteQueue service
 
 The `SQLiteQueue` service provides a number of methods for managing the queue. You can use these at your own discretion but note that some of them may have unwanted effects. For example, there are methods that change the state of the Jobs in the queue and if you are not careful, you may end up with jobs that are stuck in a state that they should not be in.
 
-The SQLiteQueue service also provides an access to the underlying Sequelize model and connection. This grants you the ability to control the queue tables and the database directly if you really need to.
+The SQLiteQueue service also provides an access to the underlying Sequelize model and connection. This grants you the ability to control the queue tables and the database directly if you need to.
 
 ## Consumers
 
@@ -147,7 +370,7 @@ export class MyConsumer {
 }
 ```
 
-### Worker Events
+## Worker Events
 
 Workers emit events that you can listen to. The events are similar to BullMQ's Worker events. The Consumer class can listen to these events by using the `@OnWorkerEvent` decorator, which takes the `WorkerEvent` as an argument. The decorated method will be called when the worker emits the event and will receive the job and possible other information as arguments.
 
@@ -199,6 +422,39 @@ Events that the worker emits are:
 - `WorkerEvent.ERROR`: Emitted when the worker has thrown an error while processing a job. Note, that this doesn't mean that the job has failed if the job has been created with `retries` option. The job will only fail after all the retries have been exhausted.
 - `WorkerEvent.FAILED`: Emitted when the worker has failed to process a job. Note, that this event is emitted after all the retries have been exhausted if the job has been created with `retries` option.
 - `WorkerEvent.STALLED`: Emitted when the worker has stalled while processing a job. It can be caused by the worker crashing or the job handler taking too long to process the job. Note, that if you have created job with failOnTimeout=true, the job will be marked as failed after the timeout has passed and this event will not be emitted. Instead, the WorkerEvent.FAILED event will be emitted. Retries will also be attempted if the job has been created with `retries` option.
+
+## Named jobs
+
+Named jobs are jobs that are created with a specific name and can be used to create jobs that are processed by a specific consumer methods. When creating a named job, the consumer must have a method that is decorated with the `@Process` decorator and the `name` argument must match the name of the job added to the queue. A Consumer can have multiple methods that are decorated with the `@Process` decorator each for a different named job.
+
+```typescript
+@Processor('my-queue')
+export class MyConsumer {
+  @Process('named-job')
+  async myNamedJobHandler(job: Job) {
+    // Do something with the job.
+    let result = await doSomethingWithTheNamedjob(job)
+
+    return result
+  }
+
+  @Process('another-named-job')
+  async myOtherNamedJobHandler(job: Job) {
+    // Do something with the job.
+    let result = await doSomethingWithTheOtherNamedjob(job)
+
+    return result
+  }
+}
+```
+
+To add a named job to the queue, you can use the `createJob` method of the `SQLiteQueue` service and provide the name of the job as the first argument:
+
+```typescript
+let jobOptions: CreateJobOptions = ...
+
+const job: Job = await this.myQueue.createJob('my-named-job', { dataForMyJob: 'data' }, jobOptions)
+```
 
 ## License
 
