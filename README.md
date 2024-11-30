@@ -2,19 +2,58 @@
 
 A simple locally persistent queue implementation for NestJS which uses SQLite and Sequelize under the hood.
 
-## Queues on SQLite vs Redis
+## How it works
+
+This library uses Sequelize (see https://sequelize.org/) to create and manager SQLite databases. Each queue is a separate table in the database and a database can have many queue tables. The library provides a `SQLiteQueue` services for each connection that can be injected into your classes and used to create jobs and manage the queue.
+
+Workers are created for each consumer that process jobs from the queue. The workers poll the queue for new jobs at a specified rate and process the jobs using the consumer methods. The workers can be configured to run a maximum number of jobs in parallel and can be paused and unpaused at any time. The polling rate can also be configured. The workers emit events that you can listen to in the consumer class.
+
+Jobs are represented as rows in the queue tables and have a specific status that represent the state of the job (WAITING, PROCESSING, DONE, STALLED, FAILED). Workers poll the queue for fresh jobs and change the status of the jobs as they are processed.
+
+Jobs can be retried a specified number of times if they fail. They can have a timeout after which they are marked as STALLED or FAILED depending on how the Consumer wants to handle this scenario. Jobs can also be named and the consumer can have multiple different methods that process jobs with different names.
+
+### Queues on SQLite vs Redis
 
 Redis and libraries like Bull and BullMQ are definitely the go-to solution for implementing queues in Node since they are mature, fast, reliable and scalable. However, for smaller projects or projects that don't require the scalability and reliability of Redis, an SQL database as a Queue will probably be just fine. In particular, sqlite is really easy to use and requires barely any setup unlike Redis for which you need to have a Redis server running.
 
-The main downside of using SQLite for queues is that it is not as fast as Redis and can't handle high loads as well. Any writes lock the whole SQLite database. SQLite is also not as reliable as Redis since it is a file-based database and can be corrupted if the application crashes while writing to the database.
+The main problems with sqlite in particular are:
 
-## Is it production ready?
+- The database is stored on disk (or memory). This means it doesn't have the persistence of redis (or traditional SQL databasesz) and doesn't scale horizontally as easily.
+- It lacks the Pub/Sub functionality of redis which is useful for real-time applications. You can't easily listen for new jobs in the queue without polling the database and polling is a hard limiter on the rate you can pick up new jobs from the queue for processing. This means that if there are a lot of jobs in the queue, the workers might not be able to keep up with the rate of new jobs being added to the queue even if they are able to process the jobs quickly.
+- Not as fast as redis when the data gets large but for smaller projects this is not an issue. It can still handle a lot of data and if need be, the data can also be pruned. For smaller data, it is actually faster than redis.
+- There is no row-level locking in sqlite and transactions lock the entire database. This can be a problem if you have a lot of concurrent writes
 
-So far this library is well unit-tested but not at all proven in any real-world scenarios. There are sure to be more or less issues that I haven't thought of. I wrote it simply because I wanted to learn more about creating NestJs libraries, was lacking any good project to work on and was interested in learning more about Queues
+  The main benefits of using sqlite are:
 
-I would say that it is probably fine to use for a smaller project that has low traffic. I would not recommend using this in a serious production environment without testing it first.
+- No need to have a separate server running
+- Almost zero setup
+- Very easy to use and handle the data. You can easily inspect the data in the database and manipulate it if needed. For backups you can simply copy the database file or the disk.
+
+### Why use this library and is it production ready?
+
+This library is really easy to setup for a NestJs project and provides a simple way to implement queues in your project. I wrote it simply because I wanted to learn more about creating NestJs libraries, was lacking any good project to work on and was interested in learning more about Queues. It is not as feature-rich as Bull or BullMQ and is not meant to replace them. It is meant to be a simple and easy-to-use alternative for smaller projects that don't require Redis.
+
+So far this library is well unit-tested but not at all proven in any real-world scenarios. There are sure to be more or less issues that I haven't thought of. I would say that it is probably fine to use for a smaller project that has low traffic. I would not recommend using this in a serious production environment without testing it first.
 
 I will be happy to receive any feedback and I plan to add more features and improvements in the future.
+
+### What is missing
+
+Some core functionalities:
+
+- Recovering from application shutdowns or crashes when jobs are being processed. There should be some easy process that marks jobs as STALLED if a job is stuck in the PROCESSING after a shutdown
+- Options to remove jobs from the queue after they have been processed or failed.
+- Some faster way of getting the jobs from the queue to the workers. Currently, the workers poll the queue for new jobs at a specified rate. There could for example be a way to pull more jobs when the workers are running out of jobs to process and it is known that there are more jobs in the queue.
+- DRAINED event. An event that is emitted when the queue is empty and all jobs have been processed.
+
+Other features:
+
+- Repeated jobs. Jobs that are repeated at a certain interval.
+- Delayed jobs. Jobs that are delayed for a certain amount of time before they are processed.
+- backoff strategies for retries. Exponential backoff, linear backoff etc.
+- Job priorities and FIFO/LIFO. Jobs that are processed in a certain order.
+- Job dependencies. Jobs that depend on other jobs.
+- Job progress. Jobs that report their progress.
 
 ## Installation and configuration
 
@@ -180,7 +219,8 @@ The `@InjectQueue` decorator uses the name of the queue you want to inject. If y
 The `SQLiteQueue` is a service similar to BullMQ's Producers but also contains many other methods for managing the queue. Mainly, you want use the `createJob` method to add a fresh job to the queue:
 
 ```typescript
-const job: Job = await this.myQueue.createJob({ dataForMyJob: 'data' }, { timeout: 30000 })
+const jobOptions: CreateJobOptions = { timeout: 30000 }
+const job: Job = await this.myQueue.createJob({ dataForMyJob: 'data' }, jobOptions)
 ```
 
 ### Job options

@@ -2,18 +2,18 @@ import * as fs from 'node:fs'
 import * as path from 'node:path'
 import { Test, TestingModule } from '@nestjs/testing'
 import { INestApplication } from '@nestjs/common'
-import { SQLiteQueueModule } from '../../src/sqlite-queue.module'
-import { getConnectionToken, getQueueToken } from '../../src/sqlite-queue.util'
 import { TestConsumer } from './src/test.consumer'
 import { TestConsumerWithNamedJobs } from './src/named-test.consumer'
+import { TestService } from './src/test.service'
 import {
+  SQLiteQueueModule,
+  getConnectionToken,
+  getQueueToken,
+  type SQLiteQueue,
+  JobStatus,
   SQLITE_QUEUE_DEFAULT_CONNECTION_NAME,
   SQLITE_QUEUE_DEFAULT_QUEUE_NAME,
-} from '../../src/sqlite-queue.constants'
-import { TestService } from './src/test.service'
-import { type SQLiteQueue } from 'src'
-import { JobStatus } from '../../src/sqlite-queue.interfaces'
-import { WorkerEvent } from '../../src/sqlite-queue.types'
+} from '../../src/'
 import type { Sequelize } from 'sequelize'
 import { sleep } from './src/util'
 

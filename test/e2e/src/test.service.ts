@@ -1,5 +1,5 @@
 import { Injectable } from '@nestjs/common'
-import type { Job } from 'src/models/job.model'
+import type { Job } from '../../../src'
 
 @Injectable()
 export class TestService {

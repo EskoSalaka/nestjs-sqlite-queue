@@ -5,9 +5,9 @@
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
   "scripts": {
-    "test": "jest",
+    "test": "jest --runInBand",
     "test:e2e": "jest --runInBand --testTimeout 30000 --config ./test/e2e/jest-e2e.json",
-    "build": "tsc -p tsconfig.json",
+    "build": "tsc -p tsconfig.build.json",
     "format": "prettier --write \"**/*.ts\""
   },
   "peerDependencies": {
@@ -19,7 +19,7 @@
     "sqlite3": "^5.0.0"
   },
   "files": [
-    "dist/**/*",
+    "dist",
     "*.md"
   ],
   "devDependencies": {
