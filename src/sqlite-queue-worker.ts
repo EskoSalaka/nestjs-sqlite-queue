@@ -92,7 +92,7 @@ export class SQLiteQueueWorker {
 
     let processingEvent = await this.queue.markAsProcessing(event.id, transaction)
     await transaction.commit()
-    this.emitWorkerEvent(processingEvent, WorkerEvent.PROCESSING)
+    this.emitWorkerEvent(processingEvent, WorkerEvent.PROCESSING, event.data)
 
     if (this.maxParallelJobs) {
       this.activeJobs++

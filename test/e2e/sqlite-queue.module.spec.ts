@@ -161,7 +161,9 @@ describe('SQLiteQueueModule (e2e)', () => {
         expect(testConsumer.handler).toHaveBeenCalledWith(succeedingJobAfterProcessing)
         expect(testService.testRun).toHaveBeenCalledTimes(1)
         expect(testConsumer.onActive).toHaveBeenCalledTimes(1)
-        expect(testConsumer.onActive).toHaveBeenCalledWith(succeedingJobAfterProcessing)
+        expect(testConsumer.onActive).toHaveBeenCalledWith(succeedingJobAfterProcessing, {
+          test: 'test',
+        })
 
         await sleep(200)
         let succeedingJobAfterDone = await queue.getJob(newSucceedingJob.id)
@@ -207,7 +209,9 @@ describe('SQLiteQueueModule (e2e)', () => {
         expect(testConsumer.handler).toHaveBeenCalledWith(failingJobAfterProcessing)
         expect(testService.testRun).toHaveBeenCalledTimes(2)
         expect(testConsumer.onActive).toHaveBeenCalledTimes(2)
-        expect(testConsumer.onActive).toHaveBeenCalledWith(failingJobAfterProcessing)
+        expect(testConsumer.onActive).toHaveBeenCalledWith(failingJobAfterProcessing, {
+          test: 'failingTest',
+        })
 
         await sleep(200)
         let failingJobAfterFailed = await queue.getJob(newFailingJob.id)
@@ -288,7 +292,10 @@ describe('SQLiteQueueModule (e2e)', () => {
         expect(namedTestConsumer.handler1).toHaveBeenCalledWith(succeedingNamedJob1AfterProcessing)
         expect(testService.testRun).toHaveBeenCalledTimes(1)
         expect(namedTestConsumer.onActive).toHaveBeenCalledTimes(1)
-        expect(namedTestConsumer.onActive).toHaveBeenCalledWith(succeedingNamedJob1AfterProcessing)
+        expect(namedTestConsumer.onActive).toHaveBeenCalledWith(
+          succeedingNamedJob1AfterProcessing,
+          { test: 'test1' }
+        )
 
         expect(namedTestConsumer.testRun2).toHaveBeenCalledTimes(0)
         expect(namedTestConsumer.handler2).toHaveBeenCalledTimes(0)
@@ -319,14 +326,21 @@ describe('SQLiteQueueModule (e2e)', () => {
         expect(namedTestConsumer.testRun1).toHaveBeenCalledTimes(1)
         expect(namedTestConsumer.handler1).toHaveBeenCalledTimes(1)
         expect(namedTestConsumer.onDone).toHaveBeenCalledTimes(1)
-        expect(namedTestConsumer.onDone).toHaveBeenCalledWith(succeedingNamedJob1AfterDone)
+        expect(namedTestConsumer.onDone).toHaveBeenCalledWith(succeedingNamedJob1AfterDone, {
+          test: 'test',
+          status: JobStatus.DONE,
+          someData: 'someData',
+        })
 
         expect(namedTestConsumer.testRun2).toHaveBeenCalledTimes(1)
         expect(namedTestConsumer.testRun2).toHaveBeenCalledWith(succeedingNamedJob2AfterProcessing)
         expect(namedTestConsumer.handler2).toHaveBeenCalledTimes(1)
         expect(namedTestConsumer.handler2).toHaveBeenCalledWith(succeedingNamedJob2AfterProcessing)
         expect(namedTestConsumer.onActive).toHaveBeenCalledTimes(2)
-        expect(namedTestConsumer.onActive).toHaveBeenCalledWith(succeedingNamedJob2AfterProcessing)
+        expect(namedTestConsumer.onActive).toHaveBeenCalledWith(
+          succeedingNamedJob2AfterProcessing,
+          { test: 'test2' }
+        )
 
         // Finish processing the second named job
         await sleep(300)
@@ -347,7 +361,11 @@ describe('SQLiteQueueModule (e2e)', () => {
         expect(namedTestConsumer.testRun2).toHaveBeenCalledTimes(1)
         expect(namedTestConsumer.handler2).toHaveBeenCalledTimes(1)
         expect(namedTestConsumer.onDone).toHaveBeenCalledTimes(2)
-        expect(namedTestConsumer.onDone).toHaveBeenCalledWith(succeedingNamedJob2AfterDone)
+        expect(namedTestConsumer.onDone).toHaveBeenCalledWith(succeedingNamedJob2AfterDone, {
+          test: 'test2',
+          status: 'done2',
+          someData: 'someData2',
+        })
         expect(namedTestConsumer.onActive).toHaveBeenCalledTimes(2)
 
         // Then validate failing jobs
@@ -399,7 +417,9 @@ describe('SQLiteQueueModule (e2e)', () => {
         expect(namedTestConsumer.handler1).toHaveBeenCalledTimes(2)
         expect(namedTestConsumer.handler1).toHaveBeenCalledWith(failingNamedJob1AfterProcessing)
         expect(namedTestConsumer.onActive).toHaveBeenCalledTimes(3)
-        expect(namedTestConsumer.onActive).toHaveBeenCalledWith(failingNamedJob1AfterProcessing)
+        expect(namedTestConsumer.onActive).toHaveBeenCalledWith(failingNamedJob1AfterProcessing, {
+          test: 'test1',
+        })
 
         // Finish processing the first named job and start processing the second named job
         await sleep(200)
@@ -414,7 +434,10 @@ describe('SQLiteQueueModule (e2e)', () => {
         expect(failingNamedJob1AfterFailed.resultData).toBeNull()
 
         expect(namedTestConsumer.onFailed).toHaveBeenCalledTimes(1)
-        expect(namedTestConsumer.onFailed).toHaveBeenCalledWith(failingNamedJob1AfterFailed)
+        expect(namedTestConsumer.onFailed).toHaveBeenCalledWith(
+          failingNamedJob1AfterFailed,
+          new Error('Test error')
+        )
 
         let failingNamedJob2AfterProcessing = await queue.getJob(failingNamedJob2.id)
 
@@ -430,7 +453,9 @@ describe('SQLiteQueueModule (e2e)', () => {
         expect(namedTestConsumer.handler2).toHaveBeenCalledTimes(2)
         expect(namedTestConsumer.handler2).toHaveBeenCalledWith(failingNamedJob2AfterProcessing)
         expect(namedTestConsumer.onActive).toHaveBeenCalledTimes(4)
-        expect(namedTestConsumer.onActive).toHaveBeenCalledWith(failingNamedJob2AfterProcessing)
+        expect(namedTestConsumer.onActive).toHaveBeenCalledWith(failingNamedJob2AfterProcessing, {
+          test: 'test2',
+        })
 
         // Finish processing the second named job
         await sleep(200)
@@ -444,7 +469,10 @@ describe('SQLiteQueueModule (e2e)', () => {
         expect(failingNamedJob2AfterFailed.resultData).toBeNull()
 
         expect(namedTestConsumer.onFailed).toHaveBeenCalledTimes(2)
-        expect(namedTestConsumer.onFailed).toHaveBeenCalledWith(failingNamedJob2AfterFailed)
+        expect(namedTestConsumer.onFailed).toHaveBeenCalledWith(
+          failingNamedJob2AfterFailed,
+          new Error('Test error 2')
+        )
 
         expect(namedTestConsumer.onDone).toHaveBeenCalledTimes(2)
       })

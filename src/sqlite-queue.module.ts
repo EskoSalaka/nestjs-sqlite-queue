@@ -117,7 +117,13 @@ export class SQLiteQueueModule {
           config.name ?? SQLITE_QUEUE_DEFAULT_QUEUE_NAME,
           workerEventMethodWithMeta.methodMeta as WorkerEvent
         ),
-        (job: any) => consumerInstance[workerEventMethodWithMeta.methodName](job)
+        (job: any, extras?: any) => {
+          if (!extras) {
+            consumerInstance[workerEventMethodWithMeta.methodName](job)
+          } else {
+            consumerInstance[workerEventMethodWithMeta.methodName](job, extras)
+          }
+        }
       )
     }
   }

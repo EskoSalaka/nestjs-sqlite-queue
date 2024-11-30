@@ -86,7 +86,8 @@ describe('SQLiteQueueWorker', () => {
     })
 
     it('should emit a PROCESSING event for the job', async () => {
-      const job: Job = { id: 1 } as any
+      const data = { test: 'data' }
+      const job: Job = { id: 1, data: data } as any
       const transaction = { commit: jest.fn().mockResolvedValue(undefined) }
       queue.getFirstNewJob = jest.fn().mockResolvedValue(job)
       queue.markAsProcessing = jest.fn().mockResolvedValue(job)
@@ -95,7 +96,7 @@ describe('SQLiteQueueWorker', () => {
 
       await (worker as any).findFirstAndMarkAsProcessing()
 
-      expect(emitSpy).toHaveBeenCalledWith(job, WorkerEvent.PROCESSING)
+      expect(emitSpy).toHaveBeenCalledWith(job, WorkerEvent.PROCESSING, data)
     })
 
     it('should increment activeJobs if maxParallelJobs is set', async () => {
