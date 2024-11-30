@@ -39,7 +39,7 @@ I will be happy to receive any feedback and I plan to add more features and impr
 
 ### What is missing
 
-Some core functionalities:
+Some core functionalities that are missing from a full-featured 1.0 release are:
 
 - Recovering from application shutdowns or crashes when jobs are being processed. There should be some easy process that marks jobs as STALLED if a job is stuck in the PROCESSING after a shutdown
 - Options to remove jobs from the queue after they have been processed or failed.
