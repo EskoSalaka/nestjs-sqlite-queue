@@ -13,6 +13,7 @@ import {
 import { TestService } from './src/test.service'
 import { type SQLiteQueue } from 'src'
 import { JobStatus } from '../../src/sqlite-queue.interfaces'
+import { WorkerEvent } from '../../src/sqlite-queue.types'
 import type { Sequelize } from 'sequelize'
 import { sleep } from './src/util'
 

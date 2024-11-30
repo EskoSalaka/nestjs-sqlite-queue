@@ -2,7 +2,7 @@
 
 A simple locally persistent queue implementation for NestJS which uses SQLite and Sequelize under the hood.
 
-## Queus on SQLite vs Redis
+## Queues on SQLite vs Redis
 
 Redis and libraries like Bull and BullMQ are definitely the go-to solution for implementing queues in Node since they are mature, fast, reliable and scalable. However, for smaller projects or projects that don't require the scalability and reliability of Redis, an SQL database as a Queue will probably be just fine. In particular, sqlite is really easy to use and requires barely any setup unlike Redis for which you need to have a Redis server running.
 
@@ -388,13 +388,13 @@ export class MyConsumer {
   }
 
   @OnWorkerEvent(WorkerEvent.PROCESSING)
-  onProcessinge(job: Job) {
-    console.log(`Job ${job.id} is now being processed`)
+  onProcessinge(job: Job, data: any) {
+    console.log(`Job ${job.id} is now being processed with data: ${data}`)
   }
 
   @OnWorkerEvent(WorkerEvent.DONE)
-  onDone(job: Job) {
-    console.log(`Job ${job.id} has been processed successfully`)
+  onDone(job: Job, result: any) {
+    console.log(`Job ${job.id} has been processed successfully with result: ${result}`)
   }
 
   @OnWorkerEvent(WorkerEvent.ERROR)
@@ -403,8 +403,8 @@ export class MyConsumer {
   }
 
   @OnWorkerEvent(WorkerEvent.FAILED)
-  onFailed(job: Job) {
-    console.log(`Job ${job.id} has failed to process`)
+  onFailed(job: Job, error: Error) {
+    console.log(`Job ${job.id} has failed with error: ${error.message}`)
   }
 
   @OnWorkerEvent(WorkerEvent.STALLED)

@@ -1,5 +1,5 @@
 import { TestService } from './test.service'
-import { JobStatus, OnWorkerEvent, Process, Processor, type Job } from '../../../src/'
+import { OnWorkerEvent, Process, Processor, WorkerEvent, type Job } from '../../../src/'
 
 @Processor()
 export class TestConsumer {
@@ -14,17 +14,17 @@ export class TestConsumer {
     return this.testService.testRun(job)
   }
 
-  @OnWorkerEvent(JobStatus.PROCESSING)
+  @OnWorkerEvent(WorkerEvent.PROCESSING)
   onActive(job: Job) {
     this.testService.testOnActive(job)
   }
 
-  @OnWorkerEvent(JobStatus.DONE)
+  @OnWorkerEvent(WorkerEvent.DONE)
   onDone(job: Job) {
     this.testService.testOnDone(job)
   }
 
-  @OnWorkerEvent(JobStatus.FAILED)
+  @OnWorkerEvent(WorkerEvent.FAILED)
   onFailed(job: Job) {
     this.testService.testOnFailed(job)
   }

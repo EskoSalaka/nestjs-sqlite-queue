@@ -1,6 +1,6 @@
 import { Logger } from '@nestjs/common'
 import { TestService } from './test.service'
-import { JobStatus, OnWorkerEvent, Process, Processor, type Job } from '../../../src/'
+import { OnWorkerEvent, Process, Processor, WorkerEvent, type Job } from '../../../src/'
 
 @Processor('NAMED_JOBS_TEST_QUEUE')
 export class TestConsumerWithNamedJobs {
@@ -26,17 +26,17 @@ export class TestConsumerWithNamedJobs {
     return this.testService.testRun2(job)
   }
 
-  @OnWorkerEvent(JobStatus.PROCESSING)
+  @OnWorkerEvent(WorkerEvent.PROCESSING)
   onActive(job: Job) {
     this.testService.testOnActive(job)
   }
 
-  @OnWorkerEvent(JobStatus.DONE)
+  @OnWorkerEvent(WorkerEvent.DONE)
   onDone(job: Job) {
     this.testService.testOnDone()
   }
 
-  @OnWorkerEvent(JobStatus.FAILED)
+  @OnWorkerEvent(WorkerEvent.FAILED)
   onFailed(job: Job) {
     this.testService.testOnFailed(job)
   }
