@@ -262,8 +262,10 @@ export class SQLiteQueue {
     return job.dataValues
   }
 
-  async createTransaction(): Promise<Transaction> {
-    return this.job.sequelize.transaction({ type: Transaction.TYPES.IMMEDIATE })
+  async createTransaction(
+    type: Transaction.TYPES = Transaction.TYPES.IMMEDIATE
+  ): Promise<Transaction> {
+    return this.job.sequelize.transaction({ type })
   }
 
   async getConnection(): Promise<Sequelize> {
