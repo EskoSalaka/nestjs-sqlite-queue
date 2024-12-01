@@ -53,6 +53,24 @@ export interface SQLiteQueueModuleConfig {
    * The path to the SQLite database file.
    */
   storage: string
+  loggingOptions?: LoggingOptions
+}
+
+/**
+ * Options for Sequelize logging (see [Sequelize documentation](https://sequelize.org/master/manual/getting-started.html#logging)).
+ *
+ * Logging is useful for debugging and not recommended for production as a lot of things will get logged.
+ */
+export interface LoggingOptions {
+  /**
+   * A function that gets executed while running the query to log the sql.
+   */
+  logging?: boolean | ((sql: string, timing?: number) => void)
+
+  /**
+   * Pass query execution time in milliseconds as second argument to logging function (options.logging).
+   */
+  benchmark?: boolean
 }
 
 export interface SQLiteQueueModuleAsyncConfig extends Pick<ModuleMetadata, 'imports'> {
