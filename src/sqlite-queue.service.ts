@@ -1,6 +1,6 @@
 import { Injectable } from '@nestjs/common'
 import { JobModel } from './models/job.model'
-import { Sequelize, Transaction, WhereOptions } from 'sequelize'
+import { Op, Sequelize, Transaction, WhereOptions } from 'sequelize'
 import { JobNotFoundError } from './sqlite-queue.errors'
 import {
   JobStatus,
@@ -65,6 +65,7 @@ export class SQLiteQueue {
     let retries = options.retries ?? SQLITE_QUEUE_DEFAULT_JOB_RETRIES
     let timeout = options.timeout ?? SQLITE_QUEUE_DEFAULT_JOB_TIMEOUT
     let failOnTimeout = options.failOnTimeout ?? SQLITE_QUEUE_DEFAULT_JOB_FAIL_ON_STALLED
+    let processAfter = options.processAfter ?? null
 
     const job = await this.job.create(
       {
@@ -74,6 +75,7 @@ export class SQLiteQueue {
         retries,
         timeout,
         failOnTimeout,
+        processAfter,
       },
       { transaction: tx }
     )
@@ -81,7 +83,7 @@ export class SQLiteQueue {
     return job.dataValues
   }
 
-  async createNewJobsBulk(
+  async createJobBulk(
     jobs: Array<{ name?: string; data?: JSONObject; jobOptions?: CreateJobOptions }>,
     tx?: Transaction
   ): Promise<Job[]> {
@@ -105,6 +107,12 @@ export class SQLiteQueue {
   async getFirstNewJob(nameOrTx?: string | Transaction, tx?: Transaction): Promise<Job | null> {
     let where: WhereOptions = {
       status: JobStatus.WAITING,
+      processAfter: {
+        [Op.or]: {
+          [Op.lt]: new Date(),
+          [Op.eq]: null,
+        },
+      },
     }
 
     if (typeof nameOrTx === 'string') {

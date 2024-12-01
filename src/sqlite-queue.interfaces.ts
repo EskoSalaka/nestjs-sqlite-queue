@@ -106,6 +106,12 @@ export interface CreateJobOptions {
    * @default false
    */
   failOnTimeout?: boolean
+
+  /**
+   * The timestamp when the job should be processed after. This is used to schedule (or delay) jobs for later processing.
+   * @default undefined
+   */
+  processAfter?: Date
 }
 
 /**
@@ -226,6 +232,11 @@ export interface Job {
    * Timestamp when the job was last updated.
    */
   updatedAt: Date
+
+  /**
+   * Timestamp for when the job should be processed after. This is used to schedule jobs for later processing.
+   */
+  processAfter: Date
 }
 interface JSONArray extends Array<JSONValue> {}
 export type JSONValue = string | number | boolean | null | JSONObject | JSONArray

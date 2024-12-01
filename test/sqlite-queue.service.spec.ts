@@ -124,10 +124,11 @@ describe('SQLiteQueue', () => {
     })
 
     it('should add a named job with options to the queue', async () => {
+      let processAfter = new Date()
       let job = await queue.createJob(
         'test',
         { data: { test: 'test' } },
-        { retries: 3, timeout: 1000, failOnTimeout: true }
+        { retries: 3, timeout: 1000, failOnTimeout: true, processAfter: processAfter }
       )
 
       expect(job).toBeDefined()
@@ -139,6 +140,7 @@ describe('SQLiteQueue', () => {
       expect(job.retriesAttempted).toBe(0)
       expect(job.timeout).toBe(1000)
       expect(job.failOnTimeout).toBe(true)
+      expect(job.processAfter).toEqual(processAfter)
 
       let jobs = await jobModel.findAll()
       expect(jobs).toHaveLength(1)
@@ -179,6 +181,19 @@ describe('SQLiteQueue', () => {
       let fetchedJob = await queue.getFirstNewJob()
 
       expect(fetchedJob).toEqual(firstJob)
+    })
+
+    it('should not get the first job in the queue with processAfter set in the future', async () => {
+      let futureDate = new Date('2050-01-01T00:00:00.000Z')
+      let newJob = await queue.createJob({}, { processAfter: futureDate })
+
+      expect(newJob).toBeDefined()
+      expect(newJob.id).toBeDefined()
+      expect(newJob.status).toBe(JobStatus.WAITING)
+      expect(newJob.processAfter).toEqual(futureDate)
+
+      let fetchedJob = await queue.getFirstNewJob()
+      expect(fetchedJob).toEqual(null)
     })
 
     it('should get the first new job added to the queue by name', async () => {
@@ -477,7 +492,7 @@ describe('SQLiteQueue', () => {
     })
   })
 
-  describe('createNewJobsBulk', () => {
+  describe('createJobBulk', () => {
     it('should add multiple jobs to the queue', async () => {
       let jobs = [
         { data: { test: 'test' } },
@@ -485,7 +500,7 @@ describe('SQLiteQueue', () => {
         { data: { test: 'test' } },
       ]
 
-      let createdJobs = await queue.createNewJobsBulk(jobs)
+      let createdJobs = await queue.createJobBulk(jobs)
 
       expect(createdJobs).toHaveLength(3)
 
@@ -523,7 +538,7 @@ describe('SQLiteQueue', () => {
         },
       ]
 
-      let createdJobs = await queue.createNewJobsBulk(jobs)
+      let createdJobs = await queue.createJobBulk(jobs)
 
       expect(createdJobs).toHaveLength(3)
 
