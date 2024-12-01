@@ -477,6 +477,72 @@ describe('SQLiteQueue', () => {
     })
   })
 
+  describe('createNewJobsBulk', () => {
+    it('should add multiple jobs to the queue', async () => {
+      let jobs = [
+        { data: { test: 'test' } },
+        { data: { test: 'test' } },
+        { data: { test: 'test' } },
+      ]
+
+      let createdJobs = await queue.createNewJobsBulk(jobs)
+
+      expect(createdJobs).toHaveLength(3)
+
+      let jobsInDb = await jobModel.findAll()
+      expect(jobsInDb).toHaveLength(3)
+      expect(jobsInDb.map((job) => job.dataValues)).toEqual(createdJobs)
+
+      jobsInDb.forEach((job) => {
+        expect(createdJobs).toContainEqual(job.dataValues)
+        expect(job.name).toBe(null)
+        expect(job.status).toBe(JobStatus.WAITING)
+        expect(job.retries).toBe(SQLITE_QUEUE_DEFAULT_JOB_RETRIES)
+        expect(job.retriesAttempted).toBe(0)
+        expect(job.timeout).toBe(SQLITE_QUEUE_DEFAULT_JOB_TIMEOUT)
+        expect(job.failOnTimeout).toBe(SQLITE_QUEUE_DEFAULT_JOB_FAIL_ON_STALLED)
+      })
+    })
+
+    it('should add multiple named jobs to the queue with options', async () => {
+      let jobs = [
+        {
+          name: 'test',
+          data: { test: 'test' },
+          jobOptions: { retries: 3, timeout: 1000, failOnTimeout: true },
+        },
+        {
+          name: 'test',
+          data: { test: 'test' },
+          jobOptions: { retries: 3, timeout: 1000, failOnTimeout: true },
+        },
+        {
+          name: 'test',
+          data: { test: 'test' },
+          jobOptions: { retries: 3, timeout: 1000, failOnTimeout: true },
+        },
+      ]
+
+      let createdJobs = await queue.createNewJobsBulk(jobs)
+
+      expect(createdJobs).toHaveLength(3)
+
+      let jobsInDb = await jobModel.findAll()
+      expect(jobsInDb).toHaveLength(3)
+      expect(jobsInDb.map((job) => job.dataValues)).toEqual(createdJobs)
+
+      jobsInDb.forEach((job) => {
+        expect(createdJobs).toContainEqual(job.dataValues)
+        expect(job.name).toBe('test')
+        expect(job.status).toBe(JobStatus.WAITING)
+        expect(job.retries).toBe(3)
+        expect(job.retriesAttempted).toBe(0)
+        expect(job.timeout).toBe(1000)
+        expect(job.failOnTimeout).toBe(true)
+      })
+    })
+  })
+
   describe('setPaused', () => {
     it('should pause and unpause the queue', async () => {
       expect(queue.isPaused()).toBe(false)

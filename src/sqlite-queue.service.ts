@@ -81,6 +81,25 @@ export class SQLiteQueue {
     return job.dataValues
   }
 
+  async createNewJobsBulk(
+    jobs: Array<{ name?: string; data?: JSONObject; jobOptions?: CreateJobOptions }>,
+    tx?: Transaction
+  ): Promise<Job[]> {
+    let newJobs = await this.job.bulkCreate(
+      jobs.map((job) => ({
+        name: job.name ?? null,
+        data: job.data ?? null,
+        status: JobStatus.WAITING,
+        retries: job?.jobOptions?.retries ?? SQLITE_QUEUE_DEFAULT_JOB_RETRIES,
+        timeout: job?.jobOptions?.timeout ?? SQLITE_QUEUE_DEFAULT_JOB_TIMEOUT,
+        failOnTimeout: job?.jobOptions?.failOnTimeout ?? SQLITE_QUEUE_DEFAULT_JOB_FAIL_ON_STALLED,
+      })),
+      { transaction: tx }
+    )
+
+    return newJobs.map((job) => job.dataValues ?? null)
+  }
+
   async getFirstNewJob(name: string, tx?: Transaction): Promise<Job | null>
   async getFirstNewJob(tx?: Transaction): Promise<Job | null>
   async getFirstNewJob(nameOrTx?: string | Transaction, tx?: Transaction): Promise<Job | null> {
