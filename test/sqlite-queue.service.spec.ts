@@ -196,6 +196,23 @@ describe('SQLiteQueue', () => {
       expect(fetchedJob).toEqual(null)
     })
 
+    it('should get the correct first job in the queue with processAfter set in the past', async () => {
+      let futureDate = new Date('2050-01-01T00:00:00.000Z')
+      let pastDate = new Date('2013-01-01T00:00:00.000Z')
+
+      let newJob = await queue.createJob({}, { processAfter: pastDate })
+      await queue.createJob({}, {})
+      await queue.createJob({}, { processAfter: futureDate })
+
+      expect(newJob).toBeDefined()
+      expect(newJob.id).toBeDefined()
+      expect(newJob.status).toBe(JobStatus.WAITING)
+      expect(newJob.processAfter).toEqual(pastDate)
+
+      let fetchedJob = await queue.getFirstNewJob()
+      expect(fetchedJob).toEqual(newJob)
+    })
+
     it('should get the first new job added to the queue by name', async () => {
       let UUID = crypto.randomUUID()
       let notToBeFoundUUID = crypto.randomUUID()
