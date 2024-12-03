@@ -28,8 +28,8 @@ export async function createSequelizeConnection(config: SQLiteQueueModuleConfig)
     dialectOptions: {
       mode: 0,
     },
-    logging: false,
-    //logging: (msg) => log(options.storagePath, msg),
+    logging: config.loggingOptions?.logging,
+    benchmark: config.loggingOptions?.benchmark,
   }
 
   const sequelize = new Sequelize(sequelizeConnectionOptions)
