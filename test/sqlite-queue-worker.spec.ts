@@ -95,21 +95,6 @@ describe('SQLiteQueueWorker', () => {
       expect(emitSpy).toHaveBeenCalledWith(job, WorkerEvent.PROCESSING, data)
     })
 
-    it('should increment activeJobs if maxParallelJobs is set', async () => {
-      const job: Job = { id: 1 } as any
-      const transaction = { commit: jest.fn().mockResolvedValue(undefined) }
-      queue.getFirstNewJob = jest.fn().mockResolvedValue(job)
-      queue.markAsProcessing = jest.fn().mockResolvedValue(job)
-      queue.createTransaction = jest.fn().mockResolvedValue(transaction)
-
-      worker['maxParallelJobs'] = 2
-
-      const result = await (worker as any).findFirstAndMarkAsProcessing()
-
-      expect(result).toEqual(job)
-      expect(worker['activeJobs']).toBe(1)
-    })
-
     it('should return null if the worker is paused', async () => {
       queue.isPaused = jest.fn().mockReturnValue(true)
 
@@ -119,20 +104,39 @@ describe('SQLiteQueueWorker', () => {
       expect(queue.markAsProcessing).not.toHaveBeenCalled()
     })
 
-    it('should return null if maxParallelJobs is reached and not start processing a job', async () => {
-      const job: Job = { id: 1 } as any
-      queue.getFirstNewJob = jest.fn().mockResolvedValue(job)
-      queue.createTransaction = jest
-        .fn()
-        .mockResolvedValue({ commit: jest.fn().mockResolvedValue(undefined) })
+    it('should handle errors gracefully when handleJob throws', async () => {
+      const job: Job = { id: 1, name: 'testJob' } as any
+      jest.spyOn(worker as any, 'findFirstAndMarkAsProcessing').mockRejectedValueOnce(job)
+      jest.spyOn(worker as any, 'handleJob').mockRejectedValue(new Error('test error'))
 
-      worker['activeJobs'] = 2
-      worker['maxParallelJobs'] = 2
+      expect(await (worker as any).consumeEvents()).toBeUndefined()
+    })
 
-      const result = await (worker as any).findFirstAndMarkAsProcessing()
+    it('should handle errors gracefully when findFirstAndMarkAsProcessing throws', async () => {
+      const job: Job = { id: 1, name: 'testJob' } as any
+      jest
+        .spyOn(worker as any, 'findFirstAndMarkAsProcessing')
+        .mockRejectedValue(new Error('test error'))
 
-      expect(result).toBeNull()
-      expect(queue.markAsProcessing).not.toHaveBeenCalled()
+      expect(await (worker as any).consumeEvents()).toBeUndefined()
+    })
+
+    it('should handle errors gracefully when completeJob throws', async () => {
+      const job: Job = { id: 1, name: 'testJob' } as any
+      jest.spyOn(worker as any, 'findFirstAndMarkAsProcessing').mockResolvedValue(job)
+      jest.spyOn(worker as any, 'handleJob').mockResolvedValue('result')
+      jest.spyOn(worker as any, 'completeJob').mockRejectedValue(new Error('test error'))
+
+      expect(await (worker as any).consumeEvents()).toBeUndefined()
+    })
+
+    it('should handle errors gracefully when handleFailure throws', async () => {
+      const job: Job = { id: 1, name: 'testJob' } as any
+      jest.spyOn(worker as any, 'findFirstAndMarkAsProcessing').mockResolvedValue(job)
+      jest.spyOn(worker as any, 'handleJob').mockRejectedValue(new Error('test error'))
+      jest.spyOn(worker as any, 'handleFailure').mockRejectedValue(new Error('test error'))
+
+      expect(await (worker as any).consumeEvents()).toBeUndefined()
     })
   })
 

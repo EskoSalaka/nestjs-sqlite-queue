@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common'
+import { Injectable, Logger } from '@nestjs/common'
 import { getWorkerEventName } from './sqlite-queue.util'
 import EventEmitter from 'node:events'
 import type { Job, SQLiteQueueConfig } from './sqlite-queue.interfaces'
@@ -12,6 +12,8 @@ export class SQLiteQueueWorker {
   private pollRate: number
   private activeJobs: number = 0
   private maxParallelJobs: number
+
+  private readonly logger = new Logger(SQLiteQueueWorker.name)
 
   constructor(
     private readonly config: SQLiteQueueConfig,
@@ -34,19 +36,37 @@ export class SQLiteQueueWorker {
       return
     }
 
-    let event = await this.findFirstAndMarkAsProcessing()
+    let event: Job | null = null
+    try {
+      event = await this.findFirstAndMarkAsProcessing()
+    } catch (e) {
+      this.logger.error('Error in finding new jobs from the Queue', e)
+    }
 
     if (!event) {
       return
     }
 
+    if (this.maxParallelJobs) {
+      this.activeJobs++
+    }
+
     try {
       let result = await this.handleJob(event)
-      let completedEvent = await this.completeJob(event, result)
 
-      return completedEvent
+      try {
+        let completedEvent = await this.completeJob(event, result)
+
+        return completedEvent
+      } catch (e) {
+        this.logger.error('Error in completing job', e)
+      }
     } catch (error: unknown) {
-      await this.handleFailure(event, error)
+      try {
+        await this.handleFailure(event, error)
+      } catch (e) {
+        this.logger.error('Error in handling failure of job', e)
+      }
     } finally {
       if (this.maxParallelJobs) {
         this.activeJobs--
@@ -84,7 +104,7 @@ export class SQLiteQueueWorker {
     const transaction = await this.queue.createTransaction()
     let event = await this.queue.getFirstNewJob(transaction)
 
-    if (!event || (this.maxParallelJobs && this.activeJobs >= this.maxParallelJobs)) {
+    if (!event) {
       await transaction.commit()
 
       return null
@@ -93,10 +113,6 @@ export class SQLiteQueueWorker {
     let processingEvent = await this.queue.markAsProcessing(event.id, transaction)
     await transaction.commit()
     this.emitWorkerEvent(processingEvent, WorkerEvent.PROCESSING, event.data)
-
-    if (this.maxParallelJobs) {
-      this.activeJobs++
-    }
 
     return processingEvent
   }
