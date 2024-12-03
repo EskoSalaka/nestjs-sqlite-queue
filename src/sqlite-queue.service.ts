@@ -9,11 +9,6 @@ import {
   type JSONObject,
   type JSONValue,
 } from './sqlite-queue.interfaces'
-import {
-  SQLITE_QUEUE_DEFAULT_JOB_FAIL_ON_STALLED,
-  SQLITE_QUEUE_DEFAULT_JOB_RETRIES,
-  SQLITE_QUEUE_DEFAULT_JOB_TIMEOUT,
-} from './sqlite-queue.constants'
 
 @Injectable()
 export class SQLiteQueue {
@@ -62,20 +57,12 @@ export class SQLiteQueue {
       options = (dataOrOptions as CreateJobOptions) ?? {}
     }
 
-    let retries = options.retries ?? SQLITE_QUEUE_DEFAULT_JOB_RETRIES
-    let timeout = options.timeout ?? SQLITE_QUEUE_DEFAULT_JOB_TIMEOUT
-    let failOnTimeout = options.failOnTimeout ?? SQLITE_QUEUE_DEFAULT_JOB_FAIL_ON_STALLED
-    let processAfter = options.processAfter ?? null
-
     const job = await this.job.create(
       {
         name,
         data,
         status: JobStatus.WAITING,
-        retries,
-        timeout,
-        failOnTimeout,
-        processAfter,
+        ...options,
       },
       { transaction: tx }
     )
@@ -92,9 +79,7 @@ export class SQLiteQueue {
         name: job.name ?? null,
         data: job.data ?? null,
         status: JobStatus.WAITING,
-        retries: job?.jobOptions?.retries ?? SQLITE_QUEUE_DEFAULT_JOB_RETRIES,
-        timeout: job?.jobOptions?.timeout ?? SQLITE_QUEUE_DEFAULT_JOB_TIMEOUT,
-        failOnTimeout: job?.jobOptions?.failOnTimeout ?? SQLITE_QUEUE_DEFAULT_JOB_FAIL_ON_STALLED,
+        ...(job?.jobOptions ?? {}),
       })),
       { transaction: tx }
     )
@@ -123,7 +108,10 @@ export class SQLiteQueue {
 
     const job = await this.job.findOne({
       where,
-      order: [['createdAt', 'ASC']],
+      order: [
+        ['priority', 'DESC'],
+        ['createdAt', 'ASC'],
+      ],
       plain: true,
       transaction: tx,
     })

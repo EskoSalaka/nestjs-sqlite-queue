@@ -73,6 +73,8 @@ describe('SQLiteQueue', () => {
       expect(job.retriesAttempted).toBe(0)
       expect(job.timeout).toBe(SQLITE_QUEUE_DEFAULT_JOB_TIMEOUT)
       expect(job.failOnTimeout).toBe(SQLITE_QUEUE_DEFAULT_JOB_FAIL_ON_STALLED)
+      expect(job.processAfter).toBe(null)
+      expect(job.priority).toBe(0)
 
       let jobs = await jobModel.findAll()
       expect(jobs).toHaveLength(1)
@@ -93,6 +95,8 @@ describe('SQLiteQueue', () => {
       expect(job.retriesAttempted).toBe(0)
       expect(job.timeout).toBe(SQLITE_QUEUE_DEFAULT_JOB_TIMEOUT)
       expect(job.failOnTimeout).toBe(SQLITE_QUEUE_DEFAULT_JOB_FAIL_ON_STALLED)
+      expect(job.processAfter).toBe(null)
+      expect(job.priority).toBe(0)
 
       let jobs = await jobModel.findAll()
       expect(jobs).toHaveLength(1)
@@ -102,9 +106,10 @@ describe('SQLiteQueue', () => {
     })
 
     it('should add a job with options to the queue', async () => {
+      let processAfter = new Date()
       let job = await queue.createJob(
         { data: { test: 'test' } },
-        { retries: 3, timeout: 1000, failOnTimeout: true }
+        { retries: 3, timeout: 1000, failOnTimeout: true, processAfter: processAfter, priority: 3 }
       )
 
       expect(job).toBeDefined()
@@ -115,6 +120,8 @@ describe('SQLiteQueue', () => {
       expect(job.retries).toBe(3)
       expect(job.timeout).toBe(1000)
       expect(job.failOnTimeout).toBe(true)
+      expect(job.processAfter).toEqual(processAfter)
+      expect(job.priority).toBe(3)
 
       let jobs = await jobModel.findAll()
       expect(jobs).toHaveLength(1)
@@ -128,7 +135,7 @@ describe('SQLiteQueue', () => {
       let job = await queue.createJob(
         'test',
         { data: { test: 'test' } },
-        { retries: 3, timeout: 1000, failOnTimeout: true, processAfter: processAfter }
+        { retries: 3, timeout: 1000, failOnTimeout: true, processAfter: processAfter, priority: 3 }
       )
 
       expect(job).toBeDefined()
@@ -141,6 +148,7 @@ describe('SQLiteQueue', () => {
       expect(job.timeout).toBe(1000)
       expect(job.failOnTimeout).toBe(true)
       expect(job.processAfter).toEqual(processAfter)
+      expect(job.priority).toBe(3)
 
       let jobs = await jobModel.findAll()
       expect(jobs).toHaveLength(1)
@@ -226,6 +234,31 @@ describe('SQLiteQueue', () => {
       await queue.createJob(notToBeFoundUUID, {})
 
       let fetchedJob = await queue.getFirstNewJob(UUID)
+
+      expect(fetchedJob).toEqual(firstJob)
+    })
+
+    it('should get the first new job added to the queue with priority', async () => {
+      // Add some more jobs to the queue. The first one shall be found
+      await queue.createJob({}, { priority: 1 })
+      await queue.createJob({}, { priority: 2 })
+
+      let firstJob = await queue.createJob({}, { priority: 3 })
+      let fetchedJob = await queue.getFirstNewJob()
+
+      expect(fetchedJob).toEqual(firstJob)
+
+      // Add some more jobs to the queue. The first one shall be found
+      await queue.createJob({}, { priority: 1 })
+      await queue.createJob({}, { priority: 2 })
+
+      fetchedJob = await queue.getFirstNewJob()
+
+      expect(fetchedJob).toEqual(firstJob)
+
+      // Add a job with higher priority
+      firstJob = await queue.createJob({}, { priority: 4 })
+      fetchedJob = await queue.getFirstNewJob()
 
       expect(fetchedJob).toEqual(firstJob)
     })
@@ -537,21 +570,40 @@ describe('SQLiteQueue', () => {
     })
 
     it('should add multiple named jobs to the queue with options', async () => {
+      let processAfter = new Date()
       let jobs = [
         {
           name: 'test',
           data: { test: 'test' },
-          jobOptions: { retries: 3, timeout: 1000, failOnTimeout: true },
+          jobOptions: {
+            retries: 3,
+            timeout: 1000,
+            failOnTimeout: true,
+            processAfter: processAfter,
+            priority: 3,
+          },
         },
         {
           name: 'test',
           data: { test: 'test' },
-          jobOptions: { retries: 3, timeout: 1000, failOnTimeout: true },
+          jobOptions: {
+            retries: 3,
+            timeout: 1000,
+            failOnTimeout: true,
+            processAfter: processAfter,
+            priority: 3,
+          },
         },
         {
           name: 'test',
           data: { test: 'test' },
-          jobOptions: { retries: 3, timeout: 1000, failOnTimeout: true },
+          jobOptions: {
+            retries: 3,
+            timeout: 1000,
+            failOnTimeout: true,
+            processAfter: processAfter,
+            priority: 3,
+          },
         },
       ]
 
@@ -571,6 +623,8 @@ describe('SQLiteQueue', () => {
         expect(job.retriesAttempted).toBe(0)
         expect(job.timeout).toBe(1000)
         expect(job.failOnTimeout).toBe(true)
+        expect(job.processAfter).toEqual(processAfter)
+        expect(job.priority).toBe(3)
       })
     })
   })

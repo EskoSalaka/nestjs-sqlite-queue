@@ -96,6 +96,13 @@ export interface CreateJobOptions {
   timeout?: number
 
   /**
+   * The priority of the job. Jobs with higher priority are processed first.
+   * @default 0
+   *
+   */
+  priority?: number
+
+  /**
    * Whether the job should fail if it times out. If set to `false`, the job will be marked as STALLED instead
    * of FAILED when it times out. If set to `true`, the job will be marked as FAILED on timeout AND retries will
    * be attempted if applicable.
@@ -172,6 +179,12 @@ export interface Job {
    * Current status of the job.
    */
   status: JobStatus
+
+  /**
+   * Priority of the job. Jobs with higher priority are processed first.
+   * @default 0
+   */
+  priority: number
 
   /**
    * Number of retries allowed for the job.

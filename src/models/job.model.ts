@@ -1,5 +1,10 @@
 import { DataTypes, Model, type Sequelize } from 'sequelize'
 import { JobStatus, type Job, type JSONObject } from '../sqlite-queue.interfaces'
+import {
+  SQLITE_QUEUE_DEFAULT_JOB_FAIL_ON_STALLED,
+  SQLITE_QUEUE_DEFAULT_JOB_RETRIES,
+  SQLITE_QUEUE_DEFAULT_JOB_TIMEOUT,
+} from '../sqlite-queue.constants'
 
 export class JobModel extends Model<Job> {
   id: number
@@ -7,6 +12,7 @@ export class JobModel extends Model<Job> {
   data?: JSONObject
   resultData?: JSONObject
   status: JobStatus
+  priority: number
 
   retries: number
   retriesAttempted: number
@@ -48,6 +54,7 @@ const JobModelDefinition: Record<keyof Job, any> = {
   },
   status: {
     type: DataTypes.ENUM,
+    allowNull: false,
     values: [
       JobStatus.WAITING,
       JobStatus.PROCESSING,
@@ -56,25 +63,31 @@ const JobModelDefinition: Record<keyof Job, any> = {
       JobStatus.FAILED,
     ],
   },
+  priority: {
+    type: DataTypes.INTEGER,
+    allowNull: false,
+    defaultValue: 0,
+  },
 
   retries: {
     type: DataTypes.INTEGER,
-    allowNull: true,
-    defaultValue: 0,
+    allowNull: false,
+    defaultValue: SQLITE_QUEUE_DEFAULT_JOB_RETRIES,
   },
   retriesAttempted: {
     type: DataTypes.INTEGER,
-    allowNull: true,
+    allowNull: false,
     defaultValue: 0,
   },
   timeout: {
     type: DataTypes.INTEGER,
     allowNull: false,
+    defaultValue: SQLITE_QUEUE_DEFAULT_JOB_TIMEOUT,
   },
   failOnTimeout: {
     type: DataTypes.BOOLEAN,
     allowNull: false,
-    defaultValue: false,
+    defaultValue: SQLITE_QUEUE_DEFAULT_JOB_FAIL_ON_STALLED,
   },
   errorMessage: {
     type: DataTypes.STRING,
@@ -89,7 +102,7 @@ const JobModelDefinition: Record<keyof Job, any> = {
 
   createdAt: {
     type: DataTypes.DATE,
-    allowNull: true,
+    allowNull: false,
     defaultValue: DataTypes.NOW,
   },
   processingAt: {
@@ -114,6 +127,8 @@ const JobModelDefinition: Record<keyof Job, any> = {
   },
   updatedAt: {
     type: DataTypes.DATE,
+    allowNull: false,
+    defaultValue: DataTypes.NOW,
   },
 
   processAfter: {
@@ -136,10 +151,21 @@ export function createJobModelDefinition(
         fields: ['status'],
       },
       {
-        fields: ['createdAt'],
+        fields: [{ name: 'createdAt', order: 'ASC' }],
       },
       {
         fields: ['processAfter'],
+      },
+      {
+        fields: [{ name: 'priority', order: 'DESC' }],
+      },
+      {
+        fields: [
+          'status',
+          'processAfter',
+          { name: 'createdAt', order: 'ASC' },
+          { name: 'priority', order: 'DESC' },
+        ],
       },
     ],
   })
