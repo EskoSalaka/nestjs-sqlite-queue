@@ -159,6 +159,15 @@ export function createJobModelDefinition(
         name: 'idx_priority_desc',
         fields: [{ name: 'priority', order: 'DESC' }],
       },
+      {
+        name: 'idx_status_processAfter_priority_desc_id_asc',
+        fields: [
+          'status',
+          'processAfter',
+          { name: 'priority', order: 'DESC' },
+          { name: 'id', order: 'ASC' },
+        ],
+      },
     ],
   })
 }
