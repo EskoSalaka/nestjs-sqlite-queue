@@ -148,24 +148,16 @@ export function createJobModelDefinition(
     deletedAt: false,
     indexes: [
       {
+        name: 'idx_status',
         fields: ['status'],
       },
       {
-        fields: [{ name: 'createdAt', order: 'ASC' }],
+        name: 'idx_processAfter',
+        fields: [{ name: 'processAfter' }],
       },
       {
-        fields: ['processAfter'],
-      },
-      {
+        name: 'idx_priority_desc',
         fields: [{ name: 'priority', order: 'DESC' }],
-      },
-      {
-        fields: [
-          'status',
-          'processAfter',
-          { name: 'createdAt', order: 'ASC' },
-          { name: 'priority', order: 'DESC' },
-        ],
       },
     ],
   })

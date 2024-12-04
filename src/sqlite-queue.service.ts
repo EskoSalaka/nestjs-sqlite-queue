@@ -110,7 +110,7 @@ export class SQLiteQueue {
       where,
       order: [
         ['priority', 'DESC'],
-        ['createdAt', 'ASC'],
+        ['id', 'ASC'],
       ],
       plain: true,
       transaction: tx,
