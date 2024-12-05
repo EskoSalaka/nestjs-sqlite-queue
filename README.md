@@ -49,9 +49,8 @@ Some core functionalities that are missing from a full-featured 1.0 release are:
 Other features:
 
 - Repeated jobs. Jobs that are repeated at a certain interval.
-- Delayed jobs. Jobs that are delayed for a certain amount of time before they are processed.
 - backoff strategies for retries. Exponential backoff, linear backoff etc.
-- Job priorities and FIFO/LIFO. Jobs that are processed in a certain order.
+- FIFO/LIFO. Jobs that are processed in a certain order.
 - Job dependencies. Jobs that depend on other jobs.
 - Job progress. Jobs that report their progress.
 
@@ -81,6 +80,8 @@ import { SQLiteQueueModule } from 'nestjs-sqlite-queue'
 })
 export class AppModule {}
 ```
+
+You can also use the special string `:memory:` to create an in-memory database with `storage: ':memory:'`
 
 Then, register a queue in your root application module. This will create a queue table in the SQLite database and provide a `SQLiteQueue` service instance to the application:
 
@@ -142,11 +143,11 @@ SqliteQueueModule.registerQueue({
 
 ```typescript
 /**
- * Configuration for the SQLiteQueueModule.
+ * Configuration for the SQLiteQueueModule. This will setup the connection to the SQLite database.
  */
 interface SQLiteQueueModuleConfig {
   /**
-   * The path to the SQLite database file.
+   * The path to the SQLite database file. If the file does not exist, it will be created. You can also use the special string ':memory:' to create an in-memory database. This is useful for testing and development purposes and many in-memory databases can be created.
    */
   storage: string
 }
@@ -244,6 +245,13 @@ interface CreateJobOptions {
   timeout?: number
 
   /**
+   * The priority of the job. Jobs with higher priority are processed first.
+   * @default 0
+   *
+   */
+  priority?: number
+
+  /**
    * Whether the job should fail if it times out. If set to `false`, the job will be marked as STALLED instead
    * of FAILED when it times out. If set to `true`, the job will be marked as FAILED on timeout AND retries will
    * be attempted if applicable.
@@ -254,6 +262,12 @@ interface CreateJobOptions {
    * @default false
    */
   failOnTimeout?: boolean
+
+  /**
+   * The timestamp when the job should be processed after. This is used to schedule (or delay) jobs for later processing.
+   * @default undefined
+   */
+  processAfter?: Date
 }
 ```
 
@@ -351,33 +365,38 @@ interface Job {
 }
 
 /**
- * Status of a job in the queue.
+ * Status of a job in the queue. The value is basically an integer in the database
+ * WAITING = 0
+ * PROCESSING = 1
+ * DONE = 2
+ * STALLED = 3
+ * FAILED = 4
  */
 enum JobStatus {
   /**
    * The job is waiting to be processed.
    */
-  WAITING = 'WAITING',
+  WAITING,
 
   /**
    * The job is currently being processed.
    */
-  PROCESSING = 'PROCESSING',
+  PROCESSING,
 
   /**
    * The job has been processed successfully.
    */
-  DONE = 'DONE',
+  DONE,
 
   /**
    * The job has stalled and is not progressing.
    */
-  STALLED = 'STALLED',
+  STALLED,
 
   /**
    * The job has failed to process.
    */
-  FAILED = 'FAILED',
+  FAILED,
 }
 ```
 
