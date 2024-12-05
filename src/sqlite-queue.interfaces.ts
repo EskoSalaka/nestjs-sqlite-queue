@@ -128,27 +128,27 @@ export enum JobStatus {
   /**
    * The job is waiting to be processed.
    */
-  WAITING = 'WAITING',
+  WAITING,
 
   /**
    * The job is currently being processed.
    */
-  PROCESSING = 'PROCESSING',
+  PROCESSING,
 
   /**
    * The job has been processed successfully.
    */
-  DONE = 'DONE',
+  DONE,
 
   /**
    * The job has stalled and is not progressing.
    */
-  STALLED = 'STALLED',
+  STALLED,
 
   /**
    * The job has failed to process.
    */
-  FAILED = 'FAILED',
+  FAILED,
 }
 
 /**

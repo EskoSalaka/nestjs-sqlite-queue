@@ -142,7 +142,7 @@ describe('SQLiteQueueModule (e2e)', () => {
         expect(succeedingJob).toBeDefined()
         expect(newSucceedingJob).toBeDefined()
         expect(newSucceedingJob.id).toBe(succeedingJob.id)
-        expect(newSucceedingJob.status).toBe('WAITING')
+        expect(newSucceedingJob.status).toBe(JobStatus.WAITING)
         expect(newSucceedingJob.data).toEqual({ test: 'test' })
         expect(newSucceedingJob.name).toBeNull()
 

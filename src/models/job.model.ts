@@ -53,7 +53,7 @@ const JobModelDefinition: Record<keyof Job, any> = {
     defaultValue: null,
   },
   status: {
-    type: DataTypes.ENUM,
+    type: DataTypes.INTEGER,
     allowNull: false,
     values: [
       JobStatus.WAITING,
