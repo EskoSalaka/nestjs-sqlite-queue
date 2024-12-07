@@ -6,6 +6,7 @@ import type { SQLiteQueue } from './sqlite-queue.service'
 import { SQLITE_QUEUE_DEFAULT_QUEUE_NAME } from './sqlite-queue.constants'
 import { JobTimeoutError } from './sqlite-queue.errors'
 import { WorkerEvent } from './sqlite-queue.types'
+import { Transaction } from 'sequelize'
 
 @Injectable()
 export class SQLiteQueueWorker {
@@ -101,20 +102,24 @@ export class SQLiteQueueWorker {
   }
 
   private async findFirstAndMarkAsProcessing(): Promise<Job | null> {
-    const transaction = await this.queue.createTransaction()
-    let event = await this.queue.getFirstNewJob(transaction)
+    let result = await this.queue.runInTransaction(
+      { type: Transaction.TYPES.DEFERRED },
+      async (Tx: Transaction) => {
+        let event = await this.queue.getFirstNewJob(Tx)
 
-    if (!event) {
-      await transaction.commit()
+        if (!event) {
+          return null
+        }
 
-      return null
+        return await this.queue.markAsProcessing(event.id, Tx)
+      }
+    )
+
+    if (result) {
+      this.emitWorkerEvent(result, WorkerEvent.PROCESSING, result.data)
     }
 
-    let processingEvent = await this.queue.markAsProcessing(event.id, transaction)
-    await transaction.commit()
-    this.emitWorkerEvent(processingEvent, WorkerEvent.PROCESSING, event.data)
-
-    return processingEvent
+    return result
   }
 
   private async handleFailure(event: Job, error: unknown) {

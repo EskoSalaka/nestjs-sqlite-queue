@@ -1,6 +1,6 @@
 import { Injectable } from '@nestjs/common'
 import { JobModel } from './models/job.model'
-import { Op, Sequelize, Transaction, WhereOptions } from 'sequelize'
+import { Op, Sequelize, Transaction, WhereOptions, type TransactionOptions } from 'sequelize'
 import { JobNotFoundError } from './sqlite-queue.errors'
 import {
   JobStatus,
@@ -259,9 +259,18 @@ export class SQLiteQueue {
   }
 
   async createTransaction(
-    type: Transaction.TYPES = Transaction.TYPES.IMMEDIATE
+    type: Transaction.TYPES = Transaction.TYPES.DEFERRED
   ): Promise<Transaction> {
     return this.job.sequelize.transaction({ type })
+  }
+
+  async runInTransaction<T>(
+    opts: TransactionOptions,
+    callback: (tx: Transaction) => Promise<T>
+  ): Promise<T> {
+    return this.job.sequelize.transaction(opts, async (tx: Transaction) => {
+      return callback(tx)
+    })
   }
 
   async getConnection(): Promise<Sequelize> {

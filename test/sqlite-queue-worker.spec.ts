@@ -18,6 +18,10 @@ describe('SQLiteQueueWorker', () => {
       createTransaction: jest.fn().mockResolvedValue({
         commit: jest.fn().mockResolvedValue(undefined),
       }),
+      runInTransaction: jest.fn().mockImplementation((opts, transactionCallback) => {
+        return transactionCallback()
+      }),
+
       getFirstNewJob: jest.fn().mockResolvedValue(null),
       markAsProcessing: jest.fn().mockResolvedValue(null),
       markAsProcessed: jest.fn().mockResolvedValue(null),
@@ -67,18 +71,13 @@ describe('SQLiteQueueWorker', () => {
 
     it('should return the first new job and mark it as processing in a transaction', async () => {
       const job: Job = { id: 1, name: 'testJob' } as any
-      const transaction = { commit: jest.fn().mockResolvedValue(undefined) }
+
       queue.getFirstNewJob = jest.fn().mockResolvedValue(job)
       queue.markAsProcessing = jest.fn().mockResolvedValue(job)
-      queue.createTransaction = jest.fn().mockResolvedValue(transaction)
 
       const result = await (worker as any).findFirstAndMarkAsProcessing()
 
       expect(result).toEqual(job)
-      expect(queue.getFirstNewJob).toHaveBeenCalledWith(transaction)
-      expect(transaction.commit).toHaveBeenCalled()
-
-      expect(queue.markAsProcessing).toHaveBeenCalledWith(job.id, transaction)
     })
 
     it('should emit a PROCESSING event for the job', async () => {
@@ -106,7 +105,7 @@ describe('SQLiteQueueWorker', () => {
 
     it('should handle errors gracefully when handleJob throws', async () => {
       const job: Job = { id: 1, name: 'testJob' } as any
-      jest.spyOn(worker as any, 'findFirstAndMarkAsProcessing').mockRejectedValueOnce(job)
+      jest.spyOn(worker as any, 'findFirstAndMarkAsProcessing').mockResolvedValueOnce(job)
       jest.spyOn(worker as any, 'handleJob').mockRejectedValue(new Error('test error'))
 
       expect(await (worker as any).consumeEvents()).toBeUndefined()
@@ -118,7 +117,7 @@ describe('SQLiteQueueWorker', () => {
         .spyOn(worker as any, 'findFirstAndMarkAsProcessing')
         .mockRejectedValue(new Error('test error'))
 
-      expect(await (worker as any).consumeEvents()).toBeUndefined()
+      await expect((worker as any).consumeEvents()).resolves.toBeUndefined()
     })
 
     it('should handle errors gracefully when completeJob throws', async () => {

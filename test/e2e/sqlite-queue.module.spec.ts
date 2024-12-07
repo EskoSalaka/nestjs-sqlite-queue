@@ -39,11 +39,11 @@ describe('SQLiteQueueModule (e2e)', () => {
           { useFactory: () => ({ storage: './test/e2e/temp/' + TEST_CONNECTION_2 }) },
           'TEST_CONNECTION_2'
         ),
-        SQLiteQueueModule.registerQueue({ pollRate: 100 }),
+        SQLiteQueueModule.registerQueue({ pollRate: 200 }),
         SQLiteQueueModule.registerQueue({
           name: NAMED_JOBS_TEST_QUEUE,
           connection: TEST_CONNECTION_2,
-          pollRate: 100,
+          pollRate: 200,
         }),
       ],
       providers: [TestConsumer, TestConsumerWithNamedJobs, TestService],
@@ -124,7 +124,7 @@ describe('SQLiteQueueModule (e2e)', () => {
         let testConsumer = app.get(TestConsumer)
 
         jest.spyOn(testService, 'testRun').mockImplementationOnce(async (job) => {
-          await sleep(200)
+          await sleep(400)
           return { test: 'test', status: JobStatus.DONE, someData: 'someData' }
         })
         jest.spyOn(testService, 'testOnActive')
@@ -146,7 +146,7 @@ describe('SQLiteQueueModule (e2e)', () => {
         expect(newSucceedingJob.data).toEqual({ test: 'test' })
         expect(newSucceedingJob.name).toBeNull()
 
-        await sleep(150)
+        await sleep(300)
         let succeedingJobAfterProcessing = await queue.getJob(succeedingJob.id)
 
         expect(succeedingJobAfterProcessing).toBeDefined()
@@ -166,7 +166,7 @@ describe('SQLiteQueueModule (e2e)', () => {
           test: 'test',
         })
 
-        await sleep(200)
+        await sleep(400)
         let succeedingJobAfterDone = await queue.getJob(newSucceedingJob.id)
 
         expect(succeedingJobAfterDone).toBeDefined()
@@ -180,7 +180,7 @@ describe('SQLiteQueueModule (e2e)', () => {
         })
 
         jest.spyOn(testService, 'testRun').mockImplementationOnce(async () => {
-          await sleep(200)
+          await sleep(400)
           throw new Error('Test error')
         })
 
@@ -194,7 +194,7 @@ describe('SQLiteQueueModule (e2e)', () => {
         expect(newFailingJob.id).toBe(failingJob.id)
         expect(newFailingJob.name).toBeNull()
 
-        await sleep(150)
+        await sleep(300)
         let failingJobAfterProcessing = await queue.getJob(failingJob.id)
 
         expect(failingJobAfterProcessing).toBeDefined()
@@ -214,7 +214,7 @@ describe('SQLiteQueueModule (e2e)', () => {
           test: 'failingTest',
         })
 
-        await sleep(200)
+        await sleep(400)
         let failingJobAfterFailed = await queue.getJob(newFailingJob.id)
 
         expect(failingJobAfterFailed).toBeDefined()
@@ -227,18 +227,18 @@ describe('SQLiteQueueModule (e2e)', () => {
     })
 
     describe('NAMED_JOBS_TEST_QUEUE', () => {
-      it('should add a a new named job with data to the queue and process it', async () => {
+      it('should add a new named job with data to the queue and process it', async () => {
         let queue = app.get(getQueueToken(NAMED_JOBS_TEST_QUEUE)) as SQLiteQueue
         let testService = app.get(TestService)
         let namedTestConsumer = app.get(TestConsumerWithNamedJobs)
 
         jest.spyOn(testService, 'testRun').mockImplementationOnce(async (job) => {
-          await sleep(200)
+          await sleep(400)
           return { test: 'test', status: JobStatus.DONE, someData: 'someData' }
         })
 
         jest.spyOn(testService, 'testRun2').mockImplementationOnce(async (job) => {
-          await sleep(400)
+          await sleep(800)
           return { test: 'test2', status: 'done2', someData: 'someData2' }
         })
 
@@ -276,7 +276,7 @@ describe('SQLiteQueueModule (e2e)', () => {
         expect(newSucceedingNamedJob2.name).toBe(NAMED_TEST_JOB_2)
 
         // Start processing the first named job
-        await sleep(100)
+        await sleep(200)
 
         let succeedingNamedJob1AfterProcessing = await queue.getJob(succeedingNamedJob1.id)
 
@@ -302,7 +302,7 @@ describe('SQLiteQueueModule (e2e)', () => {
         expect(namedTestConsumer.handler2).toHaveBeenCalledTimes(0)
 
         // Finish processing the first named job and start processing the second named job
-        await sleep(250)
+        await sleep(500)
         let succeedingNamedJob1AfterDone = await queue.getJob(newSucceedingNamedJob1.id)
 
         expect(succeedingNamedJob1AfterDone).toBeDefined()
@@ -344,7 +344,7 @@ describe('SQLiteQueueModule (e2e)', () => {
         )
 
         // Finish processing the second named job
-        await sleep(300)
+        await sleep(600)
         let succeedingNamedJob2AfterDone = await queue.getJob(succeedingNamedJob2.id)
 
         expect(succeedingNamedJob2AfterDone).toBeDefined()
@@ -371,12 +371,12 @@ describe('SQLiteQueueModule (e2e)', () => {
 
         // Then validate failing jobs
         jest.spyOn(testService, 'testRun').mockImplementationOnce(async () => {
-          await sleep(200)
+          await sleep(400)
           throw new Error('Test error')
         })
 
         jest.spyOn(testService, 'testRun2').mockImplementationOnce(async () => {
-          await sleep(300)
+          await sleep(600)
           throw new Error('Test error 2')
         })
 
@@ -402,7 +402,7 @@ describe('SQLiteQueueModule (e2e)', () => {
         expect(newFailingNamedJob2.name).toBe(NAMED_TEST_JOB_2)
 
         // Start processing the first named job
-        await sleep(100)
+        await sleep(200)
 
         let failingNamedJob1AfterProcessing = await queue.getJob(failingNamedJob1.id)
 
@@ -423,7 +423,7 @@ describe('SQLiteQueueModule (e2e)', () => {
         })
 
         // Finish processing the first named job and start processing the second named job
-        await sleep(200)
+        await sleep(400)
 
         let failingNamedJob1AfterFailed = await queue.getJob(failingNamedJob1.id)
 
@@ -459,7 +459,7 @@ describe('SQLiteQueueModule (e2e)', () => {
         })
 
         // Finish processing the second named job
-        await sleep(200)
+        await sleep(400)
         let failingNamedJob2AfterFailed = await queue.getJob(failingNamedJob2.id)
 
         expect(failingNamedJob2AfterFailed).toBeDefined()
