@@ -29,6 +29,9 @@ export class JobModel extends Model<Job> {
   updatedAt: Date
 
   processAfter: Date
+
+  removeOnComplete: boolean
+  removeOnFail: boolean
 }
 
 const JobModelDefinition: Record<keyof Job, any> = {
@@ -135,6 +138,18 @@ const JobModelDefinition: Record<keyof Job, any> = {
     type: DataTypes.DATE,
     allowNull: true,
     defaultValue: null,
+  },
+
+  removeOnComplete: {
+    type: DataTypes.BOOLEAN,
+    allowNull: false,
+    defaultValue: false,
+  },
+
+  removeOnFail: {
+    type: DataTypes.BOOLEAN,
+    allowNull: false,
+    defaultValue: false,
   },
 }
 

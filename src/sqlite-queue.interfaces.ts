@@ -119,6 +119,18 @@ export interface CreateJobOptions {
    * @default undefined
    */
   processAfter?: Date
+
+  /**
+   * Whether the job should be removed after it is completed.
+   * @default false
+   */
+  removeOnComplete?: boolean
+
+  /**
+   * Whether the job should be removed after it fails.
+   * @default false
+   */
+  removeOnFail?: boolean
 }
 
 /**
@@ -187,6 +199,18 @@ export interface Job {
   priority: number
 
   /**
+   * Indicates if the job should be removed after it is completed.
+   * @default false
+   */
+  removeOnComplete: boolean
+
+  /**
+   * Indicates if the job should be removed after it fails.
+   * @default false
+   */
+  removeOnFail: boolean
+
+  /**
    * Number of retries allowed for the job.
    */
   retries: number
@@ -249,7 +273,7 @@ export interface Job {
   /**
    * Timestamp for when the job should be processed after. This is used to schedule jobs for later processing.
    */
-  processAfter: Date
+  processAfter: Date | null
 }
 interface JSONArray extends Array<JSONValue> {}
 export type JSONValue = string | number | boolean | null | JSONObject | JSONArray

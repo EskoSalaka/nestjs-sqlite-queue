@@ -42,7 +42,6 @@ I will be happy to receive any feedback and I plan to add more features and impr
 Some core functionalities that are missing from a full-featured 1.0 release are:
 
 - Recovering from application shutdowns or crashes when jobs are being processed. There should be some easy process that marks jobs as STALLED if a job is stuck in the PROCESSING after a shutdown
-- Options to remove jobs from the queue after they have been processed or failed.
 - Some faster way of getting the jobs from the queue to the workers. Currently, the workers poll the queue for new jobs at a specified rate. There could for example be a way to pull more jobs when the workers are running out of jobs to process and it is known that there are more jobs in the queue.
 - DRAINED event. An event that is emitted when the queue is empty and all jobs have been processed.
 
@@ -50,7 +49,6 @@ Other features:
 
 - Repeated jobs. Jobs that are repeated at a certain interval.
 - backoff strategies for retries. Exponential backoff, linear backoff etc.
-- FIFO/LIFO. Jobs that are processed in a certain order.
 - Job dependencies. Jobs that depend on other jobs.
 - Job progress. Jobs that report their progress.
 
@@ -268,6 +266,18 @@ interface CreateJobOptions {
    * @default undefined
    */
   processAfter?: Date
+
+  /**
+   * Whether the job should be removed after it is completed.
+   * @default false
+   */
+  removeOnComplete?: boolean
+
+  /**
+   * Whether the job should be removed after it fails.
+   * @default false
+   */
+  removeOnFail?: boolean
 }
 ```
 
@@ -302,6 +312,24 @@ interface Job {
    * Current status of the job.
    */
   status: JobStatus
+
+  /**
+   * Priority of the job. Jobs with higher priority are processed first.
+   * @default 0
+   */
+  priority: number
+
+  /**
+   * Indicates if the job should be removed after it is completed.
+   * @default false
+   */
+  removeOnComplete: boolean
+
+  /**
+   * Indicates if the job should be removed after it fails.
+   * @default false
+   */
+  removeOnFail: boolean
 
   /**
    * Number of retries allowed for the job.
@@ -362,6 +390,11 @@ interface Job {
    * Timestamp when the job was last updated.
    */
   updatedAt: Date
+
+  /**
+   * Timestamp for when the job should be processed after. This is used to schedule jobs for later processing.
+   */
+  processAfter: Date | null
 }
 
 /**
