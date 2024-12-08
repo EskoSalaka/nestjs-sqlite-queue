@@ -31,7 +31,7 @@ The main problems with sqlite in particular are:
 
 ### Why use this library and is it production ready?
 
-This library is really easy to setup for a NestJs project and provides a simple way to implement queues in your project. I wrote it simply because I wanted to learn more about creating NestJs libraries, was lacking any good project to work on and was interested in learning more about Queues. It is not as feature-rich as Bull or BullMQ and is not meant to replace them. It is meant to be a simple and easy-to-use alternative for smaller projects that don't require Redis.
+This library is really easy to setup for a NestJs project and provides a simple way to implement queues in your project. I wrote it simply because I wanted to learn more about creating NestJs libraries, was lacking any good project to work on and was interested in learning more about Queues. It is not as feature-rich as Bull or BullMQ and is not meant to replace them. It is meant to be a simple and easy-to-use alternative for smaller projects that don't require Redis. The base of this project was heavily inspired by the BullMQ library and this article by Jason Gorman https://jasongorman.uk/writing/sqlite-background-job-system/ about creating a background job system with sqlite.
 
 So far this library is well unit-tested but not at all proven in any real-world scenarios. There are sure to be more or less issues that I haven't thought of. I would say that it is probably fine to use for a smaller project that has low traffic. I would not recommend using this in a serious production environment without testing it first.
 
