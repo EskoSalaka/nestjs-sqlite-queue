@@ -43,7 +43,6 @@ Some core functionalities that are missing from a full-featured 1.0 release are:
 
 - Recovering from application shutdowns or crashes when jobs are being processed. There should be some easy process that marks jobs as STALLED if a job is stuck in the PROCESSING after a shutdown
 - Some faster way of getting the jobs from the queue to the workers. Currently, the workers poll the queue for new jobs at a specified rate. There could for example be a way to pull more jobs when the workers are running out of jobs to process and it is known that there are more jobs in the queue.
-- DRAINED event. An event that is emitted when the queue is empty and all jobs have been processed.
 
 Other features:
 
@@ -466,6 +465,8 @@ export class MyConsumer {
 
 Workers emit events that you can listen to. The events are similar to BullMQ's Worker events. The Consumer class can listen to these events by using the `@OnWorkerEvent` decorator, which takes the `WorkerEvent` as an argument. The decorated method will be called when the worker emits the event and will receive the job and possible other information as arguments.
 
+Note, that the DRAINED event is emitted when the queue has no more jobs to process at the current time. The queue could still have unprocessed jobs in the queue which are delayed or scheduled to run at a later time.
+
 ```typescript
 import { Processor, Process, OnWorkerEvent, WorkerEvent } from 'nestjs-sqlite-queue'
 
@@ -502,6 +503,11 @@ export class MyConsumer {
   @OnWorkerEvent(WorkerEvent.STALLED)
   onStalled(job: Job) {
     console.log(`Job ${job.id} has stalled`)
+  }
+
+  @OnWorkerEvent(WorkerEvent.DRAINED)
+  onDrained(job: Job) {
+    console.log(`The queue has been drained`)
   }
 }
 ```

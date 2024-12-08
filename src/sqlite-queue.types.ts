@@ -4,4 +4,5 @@ export enum WorkerEvent {
   STALLED = 'STALLED',
   ERROR = 'ERROR',
   FAILED = 'FAILED',
+  DRAINED = 'DRAINED',
 }

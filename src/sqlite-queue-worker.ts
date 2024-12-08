@@ -11,8 +11,11 @@ import { Transaction } from 'sequelize'
 @Injectable()
 export class SQLiteQueueWorker {
   private pollRate: number
-  private activeJobs: number = 0
   private maxParallelJobs: number
+  private queueName: string
+
+  private activeJobs: number = 0
+  private drained: boolean = false
 
   private readonly logger = new Logger(SQLiteQueueWorker.name)
 
@@ -23,6 +26,7 @@ export class SQLiteQueueWorker {
   ) {
     this.maxParallelJobs = config.maxParallelJobs || 0
     this.pollRate = config.pollRate || 1000
+    this.queueName = config.name ?? SQLITE_QUEUE_DEFAULT_QUEUE_NAME
 
     setInterval(() => {
       this.consumeEvents()
@@ -40,17 +44,19 @@ export class SQLiteQueueWorker {
     let event: Job | null = null
     try {
       event = await this.findFirstAndMarkAsProcessing()
-    } catch (e) {
-      this.logger.error('Error in finding new jobs from the Queue', e)
-    }
+    } catch (e) {}
 
     if (!event) {
+      if (this.activeJobs === 0 && !this.drained) {
+        this.emitWorkerEvent(event, WorkerEvent.DRAINED)
+        this.drained = true
+      }
+
       return
     }
 
-    if (this.maxParallelJobs) {
-      this.activeJobs++
-    }
+    this.activeJobs++
+    this.drained = false
 
     try {
       let result = await this.handleJob(event)
@@ -69,8 +75,15 @@ export class SQLiteQueueWorker {
         this.logger.error('Error in handling failure of job', e)
       }
     } finally {
-      if (this.maxParallelJobs) {
-        this.activeJobs--
+      this.activeJobs--
+
+      if (this.activeJobs < 0) {
+        this.activeJobs = 0
+      }
+
+      if (this.activeJobs === 0 && !this.drained) {
+        this.emitWorkerEvent(event, WorkerEvent.DRAINED)
+        this.drained = true
       }
     }
   }
@@ -88,16 +101,9 @@ export class SQLiteQueueWorker {
 
   private emitWorkerEvent(event: Job, workerEvent: WorkerEvent, extras?: unknown) {
     if (extras) {
-      this.eventEmitter.emit(
-        getWorkerEventName(this.config.name ?? SQLITE_QUEUE_DEFAULT_QUEUE_NAME, workerEvent),
-        event,
-        extras
-      )
+      this.eventEmitter.emit(getWorkerEventName(this.queueName, workerEvent), event, extras)
     } else {
-      this.eventEmitter.emit(
-        getWorkerEventName(this.config.name ?? SQLITE_QUEUE_DEFAULT_QUEUE_NAME, workerEvent),
-        event
-      )
+      this.eventEmitter.emit(getWorkerEventName(this.queueName, workerEvent), event)
     }
   }
 

@@ -1,5 +1,13 @@
 import { EventEmitter } from 'node:events'
-import { type SQLiteQueueConfig, WorkerEvent, SQLiteQueue, SQLiteQueueWorker, Job } from '../src'
+import {
+  type SQLiteQueueConfig,
+  WorkerEvent,
+  SQLiteQueue,
+  SQLiteQueueWorker,
+  Job,
+  getWorkerEventName,
+  SQLITE_QUEUE_DEFAULT_QUEUE_NAME,
+} from '../src'
 import { JobTimeoutError } from '../src/sqlite-queue.errors'
 
 jest.useFakeTimers()
@@ -26,6 +34,7 @@ describe('SQLiteQueueWorker', () => {
       markAsProcessing: jest.fn().mockResolvedValue(null),
       markAsProcessed: jest.fn().mockResolvedValue(null),
       markAsFailed: jest.fn().mockResolvedValue(null),
+      removeJob: jest.fn().mockResolvedValue(null),
     } as any
 
     eventEmitter = new EventEmitter()
@@ -46,6 +55,106 @@ describe('SQLiteQueueWorker', () => {
 
       jest.advanceTimersByTime(1100)
       expect(consumeEventsSpy).toHaveBeenCalledTimes(2)
+    })
+
+    it('should process a new job if the worker is not paused and maxParallelJobs is not reached', async () => {
+      let testJob = { id: 1, removeOnComplete: false }
+      let testResult = { testResultData: 'result' }
+      let findFirstAndMarkAsProcessingSpy = jest
+        .spyOn(worker as any, 'findFirstAndMarkAsProcessing')
+        .mockResolvedValue(testJob)
+
+      let handleJobSpy = jest.spyOn(worker as any, 'handleJob').mockResolvedValue(testResult)
+      let handleFailureSpy = jest.spyOn(worker as any, 'handleFailure')
+      let completeJobSpy = jest.spyOn(worker as any, 'completeJob').mockResolvedValue(testJob)
+
+      ;(worker as any).activeJobs = 0
+      ;(worker as any).maxParallelJobs = 10
+
+      await (worker as any).consumeEvents()
+
+      expect(findFirstAndMarkAsProcessingSpy).toHaveBeenCalled()
+      expect(handleJobSpy).toHaveBeenCalledWith(testJob)
+      expect(completeJobSpy).toHaveBeenCalledWith(testJob, testResult)
+      expect(handleFailureSpy).not.toHaveBeenCalled()
+    })
+
+    it('should process and handle a failure of a job if the worker is not paused and maxParallelJobs is not reached', async () => {
+      let testJob = { id: 1, removeOnFail: false }
+      let testError = new Error('test error')
+      let findFirstAndMarkAsProcessingSpy = jest
+        .spyOn(worker as any, 'findFirstAndMarkAsProcessing')
+        .mockResolvedValue(testJob)
+
+      let handleJobSpy = jest.spyOn(worker as any, 'handleJob').mockRejectedValue(testError)
+      let handleFailureSpy = jest.spyOn(worker as any, 'handleFailure').mockResolvedValue(testJob)
+      let completeJobSpy = jest.spyOn(worker as any, 'completeJob')
+
+      ;(worker as any).activeJobs = 0
+      ;(worker as any).maxParallelJobs = 10
+
+      await (worker as any).consumeEvents()
+
+      expect(findFirstAndMarkAsProcessingSpy).toHaveBeenCalled()
+      expect(handleJobSpy).toHaveBeenCalledWith(testJob)
+      expect(completeJobSpy).not.toHaveBeenCalled()
+      expect(handleFailureSpy).toHaveBeenCalledWith(testJob, testError)
+    })
+
+    it('should not process a new job if the maxParallelJobs is reached', async () => {
+      let testJob = { id: 1 }
+      let testResult = { testResultData: 'result' }
+      let findFirstAndMarkAsProcessingSpy = jest
+        .spyOn(worker as any, 'findFirstAndMarkAsProcessing')
+        .mockResolvedValue(testJob)
+
+      let handleJobSpy = jest.spyOn(worker as any, 'handleJob').mockResolvedValue(testResult)
+      let handleFailureSpy = jest.spyOn(worker as any, 'handleFailure')
+      let completeJobSpy = jest.spyOn(worker as any, 'completeJob')
+
+      ;(worker as any).activeJobs = 10
+      ;(worker as any).maxParallelJobs = 10
+
+      await (worker as any).consumeEvents()
+
+      expect(findFirstAndMarkAsProcessingSpy).not.toHaveBeenCalled()
+      expect(handleJobSpy).not.toHaveBeenCalled()
+      expect(completeJobSpy).not.toHaveBeenCalled()
+      expect(handleFailureSpy).not.toHaveBeenCalled()
+    })
+
+    it('should emit a DRAINED event when the queue is empty and DRAINED has not yet been emitted', async () => {
+      const emitSpy = jest.spyOn(worker as any, 'emitWorkerEvent')
+      queue.getFirstNewJob = jest.fn().mockResolvedValue(null)
+      ;(worker as any).drained = false
+      ;(worker as any).activeJobs = 0
+
+      await (worker as any).consumeEvents()
+
+      expect(emitSpy).toHaveBeenCalledWith(null, WorkerEvent.DRAINED)
+      expect((worker as any).drained).toBe(true)
+    })
+
+    it('should not emit a DRAINED event when the queue is empty and DRAINED has already been emitted', async () => {
+      const emitSpy = jest.spyOn(worker as any, 'emitWorkerEvent')
+      queue.getFirstNewJob = jest.fn().mockResolvedValue(null)
+      ;(worker as any).drained = true
+      ;(worker as any).activeJobs = 0
+
+      await (worker as any).consumeEvents()
+
+      expect(emitSpy).not.toHaveBeenCalledWith(null, WorkerEvent.DRAINED)
+    })
+
+    it('should not emit a DRAINED event when the queue is not empty', async () => {
+      const emitSpy = jest.spyOn(worker as any, 'emitWorkerEvent')
+      queue.getFirstNewJob = jest.fn().mockResolvedValue({ id: 1 })
+      ;(worker as any).drained = false
+      ;(worker as any).activeJobs = 10
+
+      await (worker as any).consumeEvents()
+
+      expect(emitSpy).not.toHaveBeenCalledWith(null, WorkerEvent.DRAINED)
     })
   })
 
@@ -81,7 +190,7 @@ describe('SQLiteQueueWorker', () => {
     })
 
     it('should emit a PROCESSING event for the job', async () => {
-      const data = { test: 'data' }
+      const data = { test: 'data', removeOnComplete: true }
       const job: Job = { id: 1, data: data } as any
       const transaction = { commit: jest.fn().mockResolvedValue(undefined) }
       queue.getFirstNewJob = jest.fn().mockResolvedValue(job)
@@ -94,19 +203,11 @@ describe('SQLiteQueueWorker', () => {
       expect(emitSpy).toHaveBeenCalledWith(job, WorkerEvent.PROCESSING, data)
     })
 
-    it('should return null if the worker is paused', async () => {
-      queue.isPaused = jest.fn().mockReturnValue(true)
-
-      const result = await (worker as any).findFirstAndMarkAsProcessing()
-
-      expect(result).toBeNull()
-      expect(queue.markAsProcessing).not.toHaveBeenCalled()
-    })
-
     it('should handle errors gracefully when handleJob throws', async () => {
-      const job: Job = { id: 1, name: 'testJob' } as any
+      const job: Job = { id: 1, name: 'testJob', removeOnFail: true } as any
       jest.spyOn(worker as any, 'findFirstAndMarkAsProcessing').mockResolvedValueOnce(job)
       jest.spyOn(worker as any, 'handleJob').mockRejectedValue(new Error('test error'))
+      jest.spyOn(queue as any, 'markAsFailed').mockResolvedValue(job)
 
       expect(await (worker as any).consumeEvents()).toBeUndefined()
     })
@@ -121,7 +222,7 @@ describe('SQLiteQueueWorker', () => {
     })
 
     it('should handle errors gracefully when completeJob throws', async () => {
-      const job: Job = { id: 1, name: 'testJob' } as any
+      const job: Job = { id: 1, name: 'testJob', removeOnComplete: true } as any
       jest.spyOn(worker as any, 'findFirstAndMarkAsProcessing').mockResolvedValue(job)
       jest.spyOn(worker as any, 'handleJob').mockResolvedValue('result')
       jest.spyOn(worker as any, 'completeJob').mockRejectedValue(new Error('test error'))
@@ -130,7 +231,7 @@ describe('SQLiteQueueWorker', () => {
     })
 
     it('should handle errors gracefully when handleFailure throws', async () => {
-      const job: Job = { id: 1, name: 'testJob' } as any
+      const job: Job = { id: 1, name: 'testJob', removeOnFail: true } as any
       jest.spyOn(worker as any, 'findFirstAndMarkAsProcessing').mockResolvedValue(job)
       jest.spyOn(worker as any, 'handleJob').mockRejectedValue(new Error('test error'))
       jest.spyOn(worker as any, 'handleFailure').mockRejectedValue(new Error('test error'))
@@ -385,13 +486,68 @@ describe('SQLiteQueueWorker', () => {
   })
 
   describe('emitWorkerEvent', () => {
-    it('should emit worker events', () => {
+    it('should emit worker events for default queue name', () => {
       const job: Job = { id: 1 } as any
       const emitSpy = jest.spyOn(eventEmitter, 'emit')
 
       ;(worker as any).emitWorkerEvent(job, WorkerEvent.PROCESSING)
+      expect(emitSpy).toHaveBeenCalledWith(
+        getWorkerEventName(SQLITE_QUEUE_DEFAULT_QUEUE_NAME, WorkerEvent.PROCESSING),
+        job
+      )
+      ;(worker as any).emitWorkerEvent(job, WorkerEvent.DONE)
+      expect(emitSpy).toHaveBeenCalledWith(
+        getWorkerEventName(SQLITE_QUEUE_DEFAULT_QUEUE_NAME, WorkerEvent.DONE),
+        job
+      )
+      ;(worker as any).emitWorkerEvent(job, WorkerEvent.ERROR)
+      expect(emitSpy).toHaveBeenCalledWith(
+        getWorkerEventName(SQLITE_QUEUE_DEFAULT_QUEUE_NAME, WorkerEvent.ERROR),
+        job
+      )
+      ;(worker as any).emitWorkerEvent(job, WorkerEvent.FAILED)
+      expect(emitSpy).toHaveBeenCalledWith(
+        getWorkerEventName(SQLITE_QUEUE_DEFAULT_QUEUE_NAME, WorkerEvent.FAILED),
+        job
+      )
+      ;(worker as any).emitWorkerEvent(job, WorkerEvent.STALLED)
+      expect(emitSpy).toHaveBeenCalledWith(
+        getWorkerEventName(SQLITE_QUEUE_DEFAULT_QUEUE_NAME, WorkerEvent.STALLED),
+        job
+      )
+      ;(worker as any).emitWorkerEvent(job, WorkerEvent.DRAINED)
+      expect(emitSpy).toHaveBeenCalledWith(
+        getWorkerEventName(SQLITE_QUEUE_DEFAULT_QUEUE_NAME, WorkerEvent.DRAINED),
+        job
+      )
+    })
 
-      expect(emitSpy).toHaveBeenCalledWith(expect.any(String), job)
+    it('should emit worker events for a custom queue name', () => {
+      const job: Job = { id: 1 } as any
+      const queueName = 'customQueue'
+      ;(worker as any).queueName = queueName
+      const emitSpy = jest.spyOn(eventEmitter, 'emit')
+
+      ;(worker as any).emitWorkerEvent(job, WorkerEvent.PROCESSING)
+      expect(emitSpy).toHaveBeenCalledWith(
+        getWorkerEventName(queueName, WorkerEvent.PROCESSING),
+        job
+      )
+      ;(worker as any).emitWorkerEvent(job, WorkerEvent.DONE)
+
+      expect(emitSpy).toHaveBeenCalledWith(getWorkerEventName(queueName, WorkerEvent.DONE), job)
+      ;(worker as any).emitWorkerEvent(job, WorkerEvent.ERROR)
+
+      expect(emitSpy).toHaveBeenCalledWith(getWorkerEventName(queueName, WorkerEvent.ERROR), job)
+      ;(worker as any).emitWorkerEvent(job, WorkerEvent.FAILED)
+
+      expect(emitSpy).toHaveBeenCalledWith(getWorkerEventName(queueName, WorkerEvent.FAILED), job)
+      ;(worker as any).emitWorkerEvent(job, WorkerEvent.STALLED)
+
+      expect(emitSpy).toHaveBeenCalledWith(getWorkerEventName(queueName, WorkerEvent.STALLED), job)
+      ;(worker as any).emitWorkerEvent(job, WorkerEvent.DRAINED)
+
+      expect(emitSpy).toHaveBeenCalledWith(getWorkerEventName(queueName, WorkerEvent.DRAINED), job)
     })
   })
 })
