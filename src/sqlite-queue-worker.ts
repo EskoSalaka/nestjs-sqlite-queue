@@ -142,6 +142,15 @@ export class SQLiteQueueWorker {
     }
 
     let failedEvent = await this.queue.markAsFailed(event.id, error)
+
+    if (failedEvent.removeOnFail) {
+      try {
+        await this.queue.removeJob(failedEvent.id)
+      } catch (e) {
+        this.logger.error('Error in removing job after failure', e)
+      }
+    }
+
     this.emitWorkerEvent(failedEvent, WorkerEvent.FAILED, error)
 
     return failedEvent
@@ -149,6 +158,15 @@ export class SQLiteQueueWorker {
 
   private async completeJob(event: Job, result: any) {
     let processedEvent = await this.queue.markAsProcessed(event.id, result)
+
+    if (processedEvent.removeOnComplete) {
+      try {
+        await this.queue.removeJob(processedEvent.id)
+      } catch (e) {
+        this.logger.error('Error in removing job after completion', e)
+      }
+    }
+
     this.emitWorkerEvent(processedEvent, WorkerEvent.DONE, result)
 
     return processedEvent

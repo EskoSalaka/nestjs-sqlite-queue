@@ -212,6 +212,29 @@ describe('SQLiteQueueWorker', () => {
 
       expect(emitSpy).toHaveBeenCalledWith(job, WorkerEvent.DONE, testResult)
     })
+
+    it('should remove the job if removeOnComplete is set', async () => {
+      const job: Job = { id: 1, removeOnComplete: true } as any
+      const result = 'result'
+      queue.markAsProcessed = jest.fn().mockResolvedValue(job)
+      queue.removeJob = jest.fn().mockResolvedValue(undefined)
+
+      const completedJob = await (worker as any).completeJob(job, result)
+
+      expect(completedJob).toEqual(job)
+      expect(queue.markAsProcessed).toHaveBeenCalledWith(job.id, result)
+
+      expect(queue.removeJob).toHaveBeenCalledWith(job.id)
+    })
+
+    it('should complete gracefully without throwing if removeJob throws', async () => {
+      const job: Job = { id: 1, removeOnComplete: true } as any
+      const result = 'result'
+      queue.markAsProcessed = jest.fn().mockResolvedValue(job)
+      queue.removeJob = jest.fn().mockRejectedValue(new Error('test error'))
+
+      expect((worker as any).completeJob(job, result)).resolves.not.toThrow()
+    })
   })
 
   describe('handleFailure', () => {
@@ -318,6 +341,46 @@ describe('SQLiteQueueWorker', () => {
       expect(result).toEqual(job)
       expect(queue.markForRetry).not.toHaveBeenCalled()
       expect(queue.markAsFailed).toHaveBeenCalledWith(job.id, testError)
+    })
+
+    it('should remove the job if removeOnFail is set', async () => {
+      const job: Job = { id: 1, removeOnFail: true } as any
+      queue.markAsFailed = jest.fn().mockResolvedValue(job)
+      queue.markAsStalled = jest.fn().mockResolvedValue(job)
+      queue.removeJob = jest.fn().mockResolvedValue(undefined)
+
+      let testError = new Error('test error')
+      const result = await (worker as any).handleFailure(job, testError)
+
+      expect(result).toEqual(job)
+      expect(queue.markAsFailed).toHaveBeenCalledWith(job.id, testError)
+      expect(queue.markAsStalled).not.toHaveBeenCalled()
+      expect(queue.removeJob).toHaveBeenCalledWith(job.id)
+    })
+
+    it('should not remove the job if removeOnFail is not set', async () => {
+      const job: Job = { id: 1, removeOnFail: false } as any
+      queue.markAsFailed = jest.fn().mockResolvedValue(job)
+      queue.markAsStalled = jest.fn().mockResolvedValue(job)
+      queue.removeJob = jest.fn().mockResolvedValue(undefined)
+
+      let testError = new Error('test error')
+      const result = await (worker as any).handleFailure(job, testError)
+
+      expect(result).toEqual(job)
+      expect(queue.markAsFailed).toHaveBeenCalledWith(job.id, testError)
+      expect(queue.markAsStalled).not.toHaveBeenCalled()
+      expect(queue.removeJob).not.toHaveBeenCalled()
+    })
+
+    it('should complete gracefully without throwing if removeJob throws', async () => {
+      const job: Job = { id: 1, removeOnFail: true } as any
+      queue.markAsFailed = jest.fn().mockResolvedValue(job)
+      queue.markAsStalled = jest.fn().mockResolvedValue(job)
+      queue.removeJob = jest.fn().mockRejectedValue(new Error('test error'))
+
+      let testError = new Error('test error')
+      expect((worker as any).handleFailure(job, testError)).resolves.not.toThrow()
     })
   })
 
