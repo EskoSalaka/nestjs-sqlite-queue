@@ -9,6 +9,14 @@ describe('SQLiteQueueWorker', () => {
   let queue: SQLiteQueue
   let eventEmitter: EventEmitter
   let config: SQLiteQueueConfig
+  // Mock for NestJS Logger
+  const mockLogger = {
+    log: jest.fn(),
+    error: jest.fn(),
+    warn: jest.fn(),
+    debug: jest.fn(),
+    verbose: jest.fn(),
+  }
 
   beforeEach(async () => {
     jest.clearAllMocks()
@@ -29,7 +37,12 @@ describe('SQLiteQueueWorker', () => {
     } as any
 
     eventEmitter = new EventEmitter()
-    worker = new SQLiteQueueWorker(config, queue, eventEmitter)
+    worker = new SQLiteQueueWorker(config, queue, eventEmitter, mockLogger as any)
+  })
+
+  afterEach(() => {
+    jest.clearAllMocks()
+    worker.shutDown()
   })
 
   it('should be defined', () => {

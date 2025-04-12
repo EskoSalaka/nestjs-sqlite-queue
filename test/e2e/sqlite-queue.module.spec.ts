@@ -14,7 +14,6 @@ import {
   SQLITE_QUEUE_DEFAULT_CONNECTION_NAME,
   SQLITE_QUEUE_DEFAULT_QUEUE_NAME,
 } from '../../src/'
-import type { Sequelize } from 'sequelize'
 import { sleep } from './src/util'
 
 export const TEST_CONNECTION_1 = 'TEST_CONNECTION_1'
@@ -54,12 +53,6 @@ describe('SQLiteQueueModule (e2e)', () => {
   })
 
   afterAll(async () => {
-    let connection1 = app.get(getConnectionToken()) as Sequelize
-    let connection2 = app.get(getConnectionToken(TEST_CONNECTION_2)) as Sequelize
-
-    await connection1.close()
-    await connection2.close()
-
     await app.close()
 
     let tempDpPath1 = path.join(__dirname, 'temp', TEST_CONNECTION_1)

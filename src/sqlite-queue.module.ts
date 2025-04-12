@@ -1,5 +1,5 @@
 import 'reflect-metadata'
-import { Global, Inject, Module, type OnApplicationShutdown } from '@nestjs/common'
+import { Inject, Module, type OnApplicationShutdown } from '@nestjs/common'
 import {
   SQLiteQueueConfig,
   type SQLiteQueueModuleAsyncConfig,
@@ -29,9 +29,46 @@ import { ModuleRef } from '@nestjs/core'
 import type { WorkerEvent } from './sqlite-queue.types'
 import { Sequelize } from 'sequelize'
 
-@Global()
 @Module({})
-export class SQLiteQueueModule {
+export class SQLiteQueueModule implements OnApplicationShutdown {
+  static workers: SQLiteQueueWorker[] = []
+
+  static forRoot(config: SQLiteQueueModuleConfig, connection?: string) {
+    const connectionName = connection ?? SQLITE_QUEUE_DEFAULT_CONNECTION_NAME
+
+    const connectionNameProvider = {
+      provide: SQLITE_QUEUE_CONNECTION_NAME_TOKEN,
+      useValue: connectionName,
+    }
+
+    const connectionProvider = {
+      provide: getConnectionToken(connectionName),
+      useFactory: async () => SQLiteQueueModule.createConnectionFactory(config),
+    }
+
+    return {
+      module: SQLiteQueueModule,
+      providers: [connectionNameProvider, connectionProvider],
+      exports: [connectionNameProvider, connectionProvider],
+      global: true,
+    }
+  }
+
+  async onApplicationShutdown() {
+    for (const worker of SQLiteQueueModule.workers) {
+      worker.shutDown()
+    }
+
+    try {
+      const connectionToken = getConnectionToken(this.connectionName)
+      const connection = this.moduleRef.get<Sequelize>(connectionToken, { strict: false })
+
+      if (connection) {
+        await connection.close()
+      }
+    } catch (error) {}
+  }
+
   constructor(
     @Inject(SQLITE_QUEUE_CONNECTION_NAME_TOKEN) private readonly connectionName: string,
     private readonly moduleRef: ModuleRef
@@ -57,6 +94,7 @@ export class SQLiteQueueModule {
       module: SQLiteQueueModule,
       providers: [connectionNameProvider, moduleOptionsProvider, connectionProvider],
       exports: [connectionNameProvider, connectionProvider],
+      global: true,
     }
   }
 
@@ -81,9 +119,9 @@ export class SQLiteQueueModule {
         SQLiteQueueMetadataAccessor,
         DiscoveryService,
         MetadataScanner,
-        Reflector,
       ],
       exports: [sqliteQueueProvider],
+      global: true,
     }
   }
 
@@ -99,7 +137,9 @@ export class SQLiteQueueModule {
     let workerEventMethods = metaAccessor.findConsumerEventMethods(consumerInstance)
 
     let eventEmitter = new EventEmitter()
+
     let worker = new SQLiteQueueWorker(config, sqliteQueue, eventEmitter)
+    SQLiteQueueModule.workers.push(worker)
 
     for (const workerProcessMethodWithMeta of workerProcessMethods) {
       if (!workerProcessMethodWithMeta.methodMeta) {

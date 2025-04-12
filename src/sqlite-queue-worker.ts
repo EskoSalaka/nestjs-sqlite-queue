@@ -1,4 +1,4 @@
-import { Injectable, Logger } from '@nestjs/common'
+import { Injectable, Logger, Optional, type OnApplicationShutdown } from '@nestjs/common'
 import { getWorkerEventName } from './sqlite-queue.util'
 import EventEmitter from 'node:events'
 import type { Job, SQLiteQueueConfig } from './sqlite-queue.interfaces'
@@ -13,20 +13,35 @@ export class SQLiteQueueWorker {
   private pollRate: number
   private activeJobs: number = 0
   private maxParallelJobs: number
-
-  private readonly logger = new Logger(SQLiteQueueWorker.name)
+  private intervalId: NodeJS.Timeout
 
   constructor(
     private readonly config: SQLiteQueueConfig,
     private readonly queue: SQLiteQueue,
-    private readonly eventEmitter: EventEmitter
+    private readonly eventEmitter: EventEmitter,
+    @Optional() private logger: Logger = new Logger(SQLiteQueueWorker.name)
   ) {
     this.maxParallelJobs = config.maxParallelJobs || 0
     this.pollRate = config.pollRate || 1000
 
-    setInterval(() => {
+    this.start()
+  }
+
+  start() {
+    this.intervalId = setInterval(() => {
       this.consumeEvents()
     }, this.pollRate)
+  }
+
+  async shutDown() {
+    clearInterval(this.intervalId)
+
+    // Wait for active jobs to complete
+    if (this.activeJobs > 0) {
+      while (this.activeJobs > 0) {
+        await new Promise((resolve) => setTimeout(resolve, 100))
+      }
+    }
   }
 
   private async consumeEvents() {
