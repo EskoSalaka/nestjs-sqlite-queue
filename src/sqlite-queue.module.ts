@@ -13,7 +13,7 @@ import {
   SQLITE_QUEUE_DEFAULT_QUEUE_NAME,
 } from './sqlite-queue.constants'
 import { SQLiteQueueWorker } from './sqlite-queue-worker'
-import { MetadataScanner, DiscoveryService, Reflector } from '@nestjs/core'
+import { MetadataScanner, DiscoveryService } from '@nestjs/core'
 import {
   createJobModel,
   createSequelizeConnection,
@@ -56,7 +56,7 @@ export class SQLiteQueueModule implements OnApplicationShutdown {
 
   async onApplicationShutdown() {
     for (const worker of SQLiteQueueModule.workers) {
-      worker.shutDown()
+      await worker.shutDown()
     }
 
     try {
@@ -75,7 +75,7 @@ export class SQLiteQueueModule implements OnApplicationShutdown {
   ) {}
 
   static forRootAsync(options: SQLiteQueueModuleAsyncConfig, connection?: string) {
-    let moduleOptionsProvider = SQLiteQueueModule.createAsyncOptiosProvider(options)
+    let moduleOptionsProvider = SQLiteQueueModule.createAsyncOptionsProvider(options)
 
     let connectionNameProvider = {
       provide: SQLITE_QUEUE_CONNECTION_NAME_TOKEN,
@@ -168,7 +168,7 @@ export class SQLiteQueueModule implements OnApplicationShutdown {
     }
   }
 
-  static createAsyncOptiosProvider(options: SQLiteQueueModuleAsyncConfig) {
+  static createAsyncOptionsProvider(options: SQLiteQueueModuleAsyncConfig) {
     if (!(options || options.useFactory)) {
       throw new Error('Invalid configuration. For now, only useFactory is supported.')
     }
